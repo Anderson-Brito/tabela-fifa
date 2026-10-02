@@ -8,23 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: placar no topo, classificação à esquerda, lançamento + jogos à direita; empilha no celular */
+/* Layout: placar escuro no topo com seletor de torneio; abas Tabela / Jogos / Mata-mata / Admin numa coluna central */
 :root {
-  --bg: #eef2ee;
-  --surface: #ffffff;
-  --line: #d5ddd6;
-  --fg: #142019;
-  --muted: #5c6b61;
-  --accent: #0f7a3d;       /* verde gramado */
-  --accent-fg: #ffffff;
-  --chalk: #f7faf7;
-  --board: #0d1f15;        /* placar */
-  --board-fg: #e9f5ec;
-  --win: #0f7a3d;
-  --draw: #8a6d10;
-  --loss: #b3261e;
-  --lock: #4b5563;
-  --focus: #1d6fe0;
+  --bg: #eef2ee; --surface: #ffffff; --line: #d5ddd6; --fg: #142019; --muted: #5c6b61;
+  --accent: #0f7a3d; --accent-fg: #ffffff; --chalk: #f7faf7; --board: #0d1f15; --board-fg: #e9f5ec;
+  --win: #0f7a3d; --draw: #8a6d10; --loss: #b3261e; --lock: #4b5563; --gold: #b8860b; --focus: #1d6fe0;
   --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
@@ -33,14 +21,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0b130e; --surface: #121d16; --line: #24342a; --fg: #e4ede6; --muted: #92a398;
     --accent: #34b86a; --accent-fg: #06120a; --chalk: #17241b; --board: #050b07; --board-fg: #e9f5ec;
-    --win: #45c77a; --draw: #d9b13b; --loss: #f07167; --lock: #9aa4b2; --focus: #6aa8ff;
+    --win: #45c77a; --draw: #d9b13b; --loss: #f07167; --lock: #9aa4b2; --gold: #f5c542; --focus: #6aa8ff;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0b130e; --surface: #121d16; --line: #24342a; --fg: #e4ede6; --muted: #92a398;
   --accent: #34b86a; --accent-fg: #06120a; --chalk: #17241b; --board: #050b07; --board-fg: #e9f5ec;
-  --win: #45c77a; --draw: #d9b13b; --loss: #f07167; --lock: #9aa4b2; --focus: #6aa8ff;
+  --win: #45c77a; --draw: #d9b13b; --loss: #f07167; --lock: #9aa4b2; --gold: #f5c542; --focus: #6aa8ff;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -50,36 +38,42 @@ button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
-.top {
-  background: var(--board); color: var(--board-fg);
-  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
-}
-.top-in { max-width: 1180px; margin: 0 auto; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.brand { display: flex; align-items: baseline; gap: 10px; }
+.top { background: var(--board); color: var(--board-fg); padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 0; }
+.top-in { max-width: 1080px; margin: 0 auto; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
 .brand h1 { margin: 0; font: 800 30px/1 var(--display); letter-spacing: .02em; text-transform: uppercase; }
-.brand small { font: 600 13px var(--display); letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
-.session { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.brand select { background: transparent; color: var(--board-fg); border: 1px solid rgba(233,245,236,.35); border-radius: 6px; padding: 4px 8px; font: 600 15px var(--display); letter-spacing: .04em; max-width: 100%; }
+.brand select option { color: #142019; background: #fff; }
+.session { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .who { font-weight: 600; }
-.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 12px var(--display); letter-spacing: .08em; text-transform: uppercase; border: 1px solid currentColor; }
-.chip.admin { color: #f5c542; }
-.chip.player { color: #8fe3ad; }
+.chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font: 700 12px var(--display); letter-spacing: .08em; text-transform: uppercase; border: 1px solid currentColor; }
+.chip.admin { color: #f5c542; } .chip.player { color: #8fe3ad; }
+nav.tabs-top { max-width: 1080px; margin: 12px auto 0; display: flex; gap: 2px; overflow-x: auto; }
+nav.tabs-top button { background: none; border: 0; color: var(--board-fg); opacity: .65; padding: 10px 14px; border-bottom: 3px solid transparent; cursor: pointer; font: 700 16px var(--display); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+nav.tabs-top button[aria-selected="true"] { opacity: 1; border-bottom-color: var(--accent); }
 
-main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 20px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
-@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
-.col { display: grid; gap: 20px; min-width: 0; }
-
+main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 56px; display: grid; gap: 20px; }
 section.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
 .panel h2 { margin: 0 0 12px; font: 700 20px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.panel h2 .sub { font: 500 13px var(--body); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.panel h2 .sub, .sub { font: 500 13px var(--body); letter-spacing: 0; text-transform: none; color: var(--muted); }
+h3.group { margin: 18px 0 8px; font: 700 15px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+h3.group:first-child { margin-top: 0; }
 
 .btn { border: 1px solid var(--line); background: var(--chalk); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; }
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .btn.danger { color: var(--loss); }
-.btn.danger.armed, .btn.armed { background: var(--loss); color: #fff; border-color: var(--loss); }
+.btn.armed { background: var(--loss); color: #fff; border-color: var(--loss); }
 .btn.small { padding: 4px 9px; font-size: 13px; }
-.btn.ghost-on-board { background: transparent; color: var(--board-fg); border-color: rgba(233,245,236,.35); }
+.btn.board { background: transparent; color: var(--board-fg); border-color: rgba(233,245,236,.35); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.champion { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 10px; background: var(--board); color: var(--board-fg); }
+.champion .cup { font-size: 34px; line-height: 1; }
+.champion b { display: block; font: 800 26px/1.05 var(--display); text-transform: uppercase; letter-spacing: .03em; color: #f5c542; }
+
+.facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.fact { font-size: 12.5px; padding: 2px 8px; border-radius: 4px; background: var(--chalk); border: 1px solid var(--line); color: var(--muted); }
 
 /* Classificação */
 .table-wrap { overflow-x: auto; margin: 0 -4px; }
@@ -87,167 +81,133 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 th, td { padding: 8px 6px; text-align: center; white-space: nowrap; }
 th { font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--line); }
 td { border-bottom: 1px solid var(--line); }
-td.name, th.name { text-align: left; white-space: normal; min-width: 120px; }
+td.name, th.name { text-align: left; white-space: normal; min-width: 130px; }
 td.pts { font: 800 18px var(--display); }
-td.pos { font: 700 16px var(--display); color: var(--muted); width: 32px; }
-tr.leader td.pos { color: var(--accent); }
+td.pos { font: 700 16px var(--display); color: var(--muted); width: 34px; border-left: 4px solid transparent; }
+tr.q td.pos { border-left-color: var(--accent); color: var(--accent); }
 .team { display: block; font-size: 12px; color: var(--muted); }
 .form-dots { display: inline-flex; gap: 3px; }
 .dot { width: 18px; height: 18px; border-radius: 4px; font: 700 11px/18px var(--display); color: #fff; text-align: center; }
 .dot.V { background: var(--win); } .dot.E { background: var(--draw); } .dot.D { background: var(--loss); }
 .legend { margin: 10px 0 0; font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
 .legend label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--fg); }
-
-/* Formulários */
-.field { display: grid; gap: 4px; min-width: 0; }
-.field label { font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.field input, .field select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--chalk); width: 100%; min-width: 0; }
-.score-form { display: grid; grid-template-columns: minmax(0,1fr) 64px auto 64px minmax(0,1fr); gap: 8px; align-items: end; }
-.score-form .x { font: 800 22px var(--display); padding-bottom: 6px; color: var(--muted); }
-.score-form input[type=number] { text-align: center; font: 800 22px var(--display); padding: 4px; }
-@media (max-width: 480px) {
-  .score-form { grid-template-columns: minmax(0,1fr) 56px; }
-  .score-form .x { display: none; }
-}
-.row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
-.hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
-.msg { font-size: 13px; margin: 8px 0 0; }
-.msg.err { color: var(--loss); } .msg.ok { color: var(--win); }
+.qmark { display: inline-block; width: 10px; height: 10px; background: var(--accent); border-radius: 2px; }
 
 /* Jogos */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
-.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 6px 10px; cursor: pointer; font: 700 15px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
-.tab .n { font-variant-numeric: tabular-nums; opacity: .7; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.pill { border: 1px solid var(--line); background: var(--chalk); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.pill[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .games { display: grid; gap: 10px; }
-.game { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--chalk); }
-.game.final { border-left: 4px solid var(--lock); }
-.game.open { border-left: 4px solid var(--draw); }
+.game { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--chalk); border-left: 4px solid var(--line); }
+.game.final { border-left-color: var(--lock); }
+.game.played { border-left-color: var(--draw); }
+.game.mine { box-shadow: inset 0 0 0 1px var(--accent); }
 .board { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 10px; align-items: center; }
-.board .p { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.board .p { font-weight: 600; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
+.board .p small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
 .board .p.home { text-align: right; }
-.board .sc { font: 800 26px/1 var(--display); background: var(--board); color: var(--board-fg); padding: 4px 10px; border-radius: 6px; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
-.board .sc input { width: 46px; text-align: center; font: 800 22px var(--display); border: 0; border-radius: 4px; padding: 2px; background: var(--board-fg); color: var(--board); }
+.sc { display: inline-flex; align-items: center; gap: 6px; font: 800 26px/1 var(--display); background: var(--board); color: var(--board-fg); padding: 4px 10px; border-radius: 6px; font-variant-numeric: tabular-nums; letter-spacing: .04em; white-space: nowrap; }
+.sc.empty { opacity: .55; }
+.sc input { width: 44px; text-align: center; font: 800 22px var(--display); border: 0; border-radius: 4px; padding: 2px; background: var(--board-fg); color: var(--board); }
+.pens { display: flex; justify-content: center; gap: 6px; align-items: center; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.pens input { width: 40px; text-align: center; border: 1px solid var(--line); border-radius: 4px; padding: 1px; background: var(--surface); }
 .meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
-.meta .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
 .status { font: 700 11px var(--display); letter-spacing: .1em; text-transform: uppercase; padding: 1px 7px; border-radius: 4px; border: 1px solid currentColor; }
-.status.final { color: var(--lock); } .status.open { color: var(--draw); }
-.empty { padding: 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; }
+.status.final { color: var(--lock); } .status.played { color: var(--draw); } .status.todo { color: var(--muted); }
+.empty-box { padding: 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; }
 
-/* Jogadores */
-.players { display: flex; flex-wrap: wrap; gap: 8px; }
-.player { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px; background: var(--chalk); }
-.player .t { color: var(--muted); font-size: 12.5px; }
-.player button { border: 0; background: none; cursor: pointer; color: var(--loss); font-weight: 700; padding: 0 6px; }
-.add-player { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 8px; align-items: end; margin-top: 12px; }
-@media (max-width: 480px) { .add-player { grid-template-columns: minmax(0,1fr); } }
+/* Chaveamento */
+.bracket { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 6px; }
+.round { display: flex; flex-direction: column; gap: 12px; justify-content: space-around; }
+.round h4 { margin: 0; font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.tie { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--chalk); }
+.tie .row { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 6px; padding: 7px 10px; align-items: center; }
+.tie .row + .row { border-top: 1px solid var(--line); }
+.tie .row.w { font-weight: 700; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tie .seed { font: 700 12px var(--display); color: var(--muted); }
+.tie .agg { font: 800 18px var(--display); font-variant-numeric: tabular-nums; }
+.tie .legs { padding: 4px 10px 7px; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); }
+.tie.tbd .row { color: var(--muted); font-style: italic; }
 
-/* Login */
-dialog { border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(420px, calc(100vw - 32px)); background: var(--surface); color: var(--fg); }
+/* Formulários / Admin */
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > label, .lbl { font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.field input, .field select, .tinput { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--chalk); width: 100%; min-width: 0; }
+.stack { display: grid; gap: 16px; }
+.choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.choice label { display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; background: var(--chalk); }
+.choice label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice label:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.choice input { position: absolute; opacity: 0; pointer-events: none; }
+.choice b { font: 700 16px var(--display); letter-spacing: .03em; text-transform: uppercase; }
+.choice span { font-size: 13px; color: var(--muted); }
+.plist { display: grid; gap: 6px; }
+.prow { display: grid; grid-template-columns: auto minmax(90px, 140px) minmax(0, 1fr); gap: 10px; align-items: center; }
+.prow.two { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); }
+.prow label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.summary { background: var(--board); color: var(--board-fg); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+.summary b { font: 800 22px var(--display); color: #8fe3ad; }
+.msg { font-size: 13px; margin: 0; }
+.msg.err { color: var(--loss); } .msg.ok { color: var(--win); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+dialog { border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(400px, calc(100vw - 32px)); background: var(--surface); color: var(--fg); }
 dialog::backdrop { background: rgba(5, 12, 8, .6); }
 .dlg { padding: 20px; display: grid; gap: 12px; }
 .dlg h3 { margin: 0; font: 800 24px var(--display); text-transform: uppercase; letter-spacing: .03em; }
-.dlg .switch { font-size: 14px; color: var(--muted); }
-.dlg .switch button { background: none; border: 0; color: var(--accent); font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
-
-.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--board); color: var(--board-fg); padding: 10px 16px; border-radius: 8px; font-weight: 600; max-width: calc(100vw - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
-@media (prefers-reduced-motion: no-preference) { .game { transition: background .2s; } }
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--board); color: var(--board-fg); padding: 10px 16px; border-radius: 8px; font-weight: 600; max-width: calc(100vw - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+@media (max-width: 520px) {
+  .prow { grid-template-columns: auto minmax(0, 1fr); }
+  .prow .tinput { grid-column: 1 / -1; }
+  .sc { font-size: 22px; padding: 4px 8px; }
+}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="top-in">
-    <div class="brand"><h1>Tabela FIFA</h1><small id="season">Campeonato</small></div>
-    <div class="session" id="session">
+    <div class="brand">
+      <h1>Tabela FIFA</h1>
+      <select id="selTorneio" aria-label="Torneio" hidden></select>
+    </div>
+    <div class="session">
       <span class="who" id="who" hidden></span>
       <span class="chip" id="role" hidden></span>
-      <button class="btn ghost-on-board small" id="btnLogin" type="button">Entrar</button>
-      <button class="btn ghost-on-board small" id="btnLogout" type="button" hidden>Sair</button>
+      <button class="btn board small" id="btnPass" type="button" hidden>Trocar senha</button>
+      <button class="btn board small" id="btnLogin" type="button">Entrar</button>
+      <button class="btn board small" id="btnLogout" type="button" hidden>Sair</button>
     </div>
   </div>
+  <nav class="tabs-top" role="tablist">
+    <button role="tab" data-tab="tabela" aria-selected="true" type="button">Tabela</button>
+    <button role="tab" data-tab="jogos" aria-selected="false" type="button">Jogos</button>
+    <button role="tab" data-tab="mata" aria-selected="false" type="button" id="tabMata">Mata-mata</button>
+    <button role="tab" data-tab="admin" aria-selected="false" type="button" id="tabAdmin" hidden>Admin</button>
+  </nav>
 </header>
 
-<main>
-  <div class="col">
-    <section class="panel" aria-labelledby="hTab">
-      <h2 id="hTab">Classificação <span class="sub" id="tabSub">Conta só jogos finalizados</span></h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th class="name">Jogador</th><th title="Pontos">P</th><th title="Jogos">J</th>
-              <th title="Vitórias">V</th><th title="Empates">E</th><th title="Derrotas">D</th>
-              <th title="Gols pró">GP</th><th title="Gols contra">GC</th><th title="Saldo de gols">SG</th><th>Últimos</th>
-            </tr>
-          </thead>
-          <tbody id="standings"></tbody>
-        </table>
-      </div>
-      <div class="legend">
-        <span>Vitória 3 pts · Empate 1 pt · Desempate: V, SG, GP</span>
-        <label><input type="checkbox" id="incOpen"> Incluir jogos em aberto (prévia)</label>
-      </div>
-    </section>
+<main id="view"></main>
 
-    <section class="panel" aria-labelledby="hPl">
-      <h2 id="hPl">Jogadores <span class="sub" id="plCount"></span></h2>
-      <div class="players" id="players"></div>
-      <form class="add-player" id="formPlayer" hidden>
-        <div class="field"><label for="plName">Nome</label><input id="plName" maxlength="40" required placeholder="Ex.: Anderson"></div>
-        <div class="field"><label for="plTeam">Time (opcional)</label><input id="plTeam" maxlength="40" placeholder="Ex.: Real Madrid"></div>
-        <button class="btn" type="submit">Adicionar</button>
-      </form>
-      <p class="msg" id="plMsg" hidden></p>
-    </section>
-  </div>
+<dialog id="dlgLogin">
+  <form class="dlg" id="formLogin">
+    <h3>Entrar</h3>
+    <div class="field"><label for="lUser">Quem é você?</label><select id="lUser" required></select></div>
+    <div class="field"><label for="lPass">Senha</label><input id="lPass" type="password" inputmode="numeric" required autocomplete="current-password"></div>
+    <p class="msg err" id="lMsg" hidden></p>
+    <div class="row-actions"><button class="btn primary" type="submit" id="lGo">Entrar</button><button class="btn" type="button" data-close>Cancelar</button></div>
+    <p class="hint">A senha foi passada pelo Anderson. Esqueceu? Fale com ele.</p>
+  </form>
+</dialog>
 
-  <div class="col">
-    <section class="panel" aria-labelledby="hNew">
-      <h2 id="hNew">Lançar resultado</h2>
-      <div id="newLocked">
-        <p class="hint" style="margin-top:0">Entre com sua conta para lançar placares. Qualquer pessoa pode ver a tabela.</p>
-        <div class="row-actions"><button class="btn primary" type="button" id="btnLogin2">Entrar ou criar conta</button></div>
-      </div>
-      <form id="formGame" hidden>
-        <div class="score-form">
-          <div class="field"><label for="gHome">Mandante</label><select id="gHome" required></select></div>
-          <div class="field"><label for="gHomeG">Gols</label><input id="gHomeG" type="number" min="0" max="99" required value="0" inputmode="numeric"></div>
-          <span class="x">×</span>
-          <div class="field"><label for="gAwayG">Gols</label><input id="gAwayG" type="number" min="0" max="99" required value="0" inputmode="numeric"></div>
-          <div class="field"><label for="gAway">Visitante</label><select id="gAway" required></select></div>
-        </div>
-        <div class="row-actions">
-          <button class="btn" type="submit" data-final="0">Salvar em aberto</button>
-          <button class="btn primary" type="submit" data-final="1">Salvar e finalizar</button>
-        </div>
-        <p class="hint">Jogo em aberto pode ser corrigido por qualquer participante. Depois de finalizado, só o administrador altera.</p>
-        <p class="msg" id="gMsg" hidden></p>
-      </form>
-    </section>
-
-    <section class="panel" aria-labelledby="hGames">
-      <h2 id="hGames">Jogos</h2>
-      <div class="tabs" role="tablist">
-        <button class="tab" role="tab" id="tabOpen" aria-selected="true" type="button">Em aberto <span class="n" id="nOpen">0</span></button>
-        <button class="tab" role="tab" id="tabFinal" aria-selected="false" type="button">Finalizados <span class="n" id="nFinal">0</span></button>
-      </div>
-      <div class="games" id="games"></div>
-    </section>
-  </div>
-</main>
-
-<dialog id="dlg">
-  <form class="dlg" id="formAuth" method="dialog">
-    <h3 id="authTitle">Entrar</h3>
-    <div class="field" id="fName" hidden><label for="aName">Seu nome</label><input id="aName" maxlength="40" autocomplete="name"></div>
-    <div class="field"><label for="aEmail">E-mail</label><input id="aEmail" type="email" required autocomplete="email"></div>
-    <div class="field"><label for="aPass">Senha</label><input id="aPass" type="password" required minlength="6" autocomplete="current-password"></div>
-    <p class="msg" id="aMsg" hidden></p>
-    <div class="row-actions" style="margin-top:0">
-      <button class="btn primary" type="submit" id="aSubmit">Entrar</button>
-      <button class="btn" type="button" id="aCancel">Cancelar</button>
-    </div>
-    <p class="switch" id="aSwitch">Ainda não tem conta? <button type="button" id="aToggle">Criar conta</button></p>
+<dialog id="dlgPass">
+  <form class="dlg" id="formPass">
+    <h3>Trocar senha</h3>
+    <div class="field"><label for="pNew">Nova senha</label><input id="pNew" type="password" minlength="6" required autocomplete="new-password"></div>
+    <div class="field"><label for="pNew2">Repita a nova senha</label><input id="pNew2" type="password" minlength="6" required autocomplete="new-password"></div>
+    <p class="msg" id="pMsg" hidden></p>
+    <div class="row-actions"><button class="btn primary" type="submit">Salvar senha</button><button class="btn" type="button" data-close>Cancelar</button></div>
   </form>
 </dialog>
 
@@ -255,14 +215,30 @@ dialog::backdrop { background: rgba(5, 12, 8, .6); }
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-// ===== Configuração do Supabase (chave pública; a segurança está nas regras do banco) =====
+// ===== Supabase (chave pública; a segurança está nas regras do banco) =====
 const SUPABASE_URL = "https://tnzxpqbrxycryzsrecjq.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuenhwcWJyeHljcnl6c3JlY2pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NzM3MTUsImV4cCI6MjEwNjU0OTcxNX0.BcrGPqb45E3p_ISqICebZiaozbJOEi0S1bDocKbGGus";
+const LOGIN_DOMAIN = "fifa.utdlink.com";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const $ = (id) => document.getElementById(id);
-const state = { user: null, me: null, players: [], games: [], profiles: {}, tab: "open", editing: null };
+const TEAMS = {
+  "Top Europa": ["Real Madrid", "Barcelona", "Manchester City", "Liverpool", "Arsenal", "Bayern de Munique", "PSG", "Inter de Milão", "Juventus", "Milan", "Chelsea", "Manchester United", "Atlético de Madrid", "Borussia Dortmund", "Napoli", "Bayer Leverkusen"],
+  "Brasileirão": ["Flamengo", "Palmeiras", "Corinthians", "São Paulo", "Santos", "Grêmio", "Internacional", "Atlético-MG", "Cruzeiro", "Botafogo", "Fluminense", "Vasco", "Bahia", "Fortaleza"],
+  "Seleções": ["Brasil", "Argentina", "França", "Inglaterra", "Espanha", "Alemanha", "Portugal", "Holanda", "Itália", "Bélgica", "Croácia", "Uruguai"],
+};
+const FASES = { oitavas: "Oitavas de final", quartas: "Quartas de final", semi: "Semifinal", final: "Final" };
+const FASE_POR_N = { 16: "oitavas", 8: "quartas", 4: "semi", 2: "final" };
+const PROXIMA = { oitavas: "quartas", quartas: "semi", semi: "final" };
+// ordem do chaveamento por semente: 1 e 2 só se encontram na final
+const CHAVES = { 2: [[1, 2]], 4: [[1, 4], [2, 3]], 8: [[1, 8], [4, 5], [2, 7], [3, 6]] };
 
+const $ = (id) => document.getElementById(id);
+const S = {
+  user: null, me: null, perfis: [], jogadores: [], torneios: [],
+  tid: null, parts: [], jogos: [], tab: "tabela", filtro: "todos", incOpen: false, editing: null,
+};
+
+// ===== utilidades =====
 function el(tag, attrs = {}, ...kids) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -271,33 +247,24 @@ function el(tag, attrs = {}, ...kids) {
     else if (v === true) n.setAttribute(k, "");
     else if (v !== false && v != null) n.setAttribute(k, v);
   }
-  for (const c of kids.flat()) if (c != null) n.append(c);
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
   return n;
 }
-function toast(text) {
-  const t = $("toast"); t.textContent = text; t.hidden = false;
-  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2600);
-}
-function showMsg(node, text, ok) {
-  node.textContent = text; node.className = "msg " + (ok ? "ok" : "err"); node.hidden = !text;
-}
+function toast(t) { const n = $("toast"); n.textContent = t; n.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (n.hidden = true), 2800); }
+function msg(node, text, ok) { node.textContent = text || ""; node.className = "msg " + (ok ? "ok" : "err"); node.hidden = !text; }
 function errText(e) {
   const m = (e && (e.message || e.error_description)) || String(e);
-  if (/finalizado/i.test(m)) return "Jogo finalizado: só o administrador pode alterar.";
-  if (/Invalid login/i.test(m)) return "E-mail ou senha incorretos.";
-  if (/already registered/i.test(m)) return "Esse e-mail já tem conta. Use Entrar.";
-  if (/jogadores_nome_unico|duplicate key/i.test(m)) return "Já existe um jogador com esse nome.";
-  if (/foreign key/i.test(m)) return "Esse jogador tem jogos lançados. Remova os jogos antes.";
-  if (/Email not confirmed/i.test(m)) return "Confirme seu e-mail pelo link enviado antes de entrar.";
-  if (/row-level security|permission denied/i.test(m)) return "Você não tem permissão para essa ação.";
+  if (/finalizado/i.test(m)) return "Jogo finalizado: só o admin pode alterar.";
+  if (/Invalid login/i.test(m)) return "Senha incorreta.";
+  if (/row-level security|permission denied/i.test(m)) return "Você não tem permissão para isso.";
+  if (/should be different/i.test(m)) return "A nova senha precisa ser diferente da atual.";
+  if (/at least/i.test(m)) return "A senha precisa ter pelo menos 6 caracteres.";
   return m;
 }
-// Botão de confirmação em dois cliques (sem confirm() do navegador)
 function armed(btn, label, action) {
   btn.addEventListener("click", async () => {
     if (!btn.classList.contains("armed")) {
-      const orig = btn.textContent;
-      btn.classList.add("armed"); btn.textContent = label;
+      const orig = btn.textContent; btn.classList.add("armed"); btn.textContent = label;
       btn._t = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = orig; }, 3500);
       return;
     }
@@ -306,261 +273,593 @@ function armed(btn, label, action) {
   });
   return btn;
 }
-const isAdmin = () => !!state.me?.is_admin;
-const logged = () => !!state.user;
-const playerById = (id) => state.players.find((p) => p.id === id);
-const pname = (id) => playerById(id)?.nome || "—";
-const uname = (id) => (id && state.profiles[id]?.nome) || "alguém";
-const fmtDate = (s) => new Date(s).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 
-// ===== Dados =====
-async function loadAll() {
-  const [pl, gm] = await Promise.all([
+const isAdmin = () => !!S.me?.is_admin;
+const logged = () => !!S.user;
+const T = () => S.torneios.find((t) => t.id === S.tid) || null;
+const jog = (id) => S.jogadores.find((j) => j.id === id);
+const part = (id) => S.parts.find((p) => p.jogador_id === id);
+const nome = (id) => jog(id)?.nome || "—";
+const time = (id) => part(id)?.time || "";
+const meuJogador = () => S.jogadores.find((j) => j.perfil_id && j.perfil_id === S.user?.id)?.id;
+const perfilNome = (uid) => S.perfis.find((p) => p.id === uid)?.nome || "alguém";
+const temLiga = (t) => t && t.formato !== "mata";
+const temMata = (t) => t && t.formato !== "pontos";
+const idaVolta = (t, fase) => (fase === "final" ? t.final_ida_volta : t.mata_ida_volta);
+
+// ===== dados =====
+async function loadBase() {
+  const [pf, jg, tn] = await Promise.all([
+    sb.from("perfis").select("id,nome,usuario,is_admin").order("nome"),
     sb.from("jogadores").select("*").order("nome"),
-    sb.from("jogos").select("*").order("criado_em", { ascending: false }),
+    sb.from("torneios").select("*").order("criado_em", { ascending: false }),
   ]);
-  if (pl.error || gm.error) { toast("Não foi possível carregar os dados. Recarregue a página."); return; }
-  state.players = pl.data; state.games = gm.data;
-  const ids = [...new Set(state.games.flatMap((g) => [g.criado_por, g.atualizado_por, g.finalizado_por]).filter(Boolean))];
-  if (ids.length) {
-    const { data } = await sb.from("perfis").select("id,nome").in("id", ids);
-    for (const p of data || []) state.profiles[p.id] = p;
+  if (pf.error || jg.error || tn.error) return toast("Não foi possível carregar. Recarregue a página.");
+  S.perfis = pf.data; S.jogadores = jg.data; S.torneios = tn.data;
+  if (!S.torneios.some((t) => t.id === S.tid)) {
+    const salvo = store.get("torneio");
+    S.tid = (S.torneios.find((t) => t.id === salvo) || S.torneios.find((t) => t.status === "andamento") || S.torneios[0])?.id || null;
   }
+  S.me = S.user ? S.perfis.find((p) => p.id === S.user.id) || null : null;
+  await loadTorneio();
+}
+async function loadTorneio() {
+  if (!S.tid) { S.parts = []; S.jogos = []; return render(); }
+  const [pt, jg] = await Promise.all([
+    sb.from("participantes").select("*").eq("torneio_id", S.tid),
+    sb.from("jogos").select("*").eq("torneio_id", S.tid).order("rodada").order("chave").order("perna"),
+  ]);
+  if (pt.error || jg.error) return toast("Não foi possível carregar o torneio.");
+  S.parts = pt.data; S.jogos = jg.data;
   render();
 }
-async function loadMe() {
-  const { data: { session } } = await sb.auth.getSession();
-  state.user = session?.user || null; state.me = null;
-  if (state.user) {
-    const { data } = await sb.from("perfis").select("*").eq("id", state.user.id).maybeSingle();
-    state.me = data;
-    if (data) state.profiles[data.id] = data;
+
+// ===== regras do campeonato =====
+function standings(includeOpen) {
+  const rows = new Map(S.parts.map((p) => [p.jogador_id, { id: p.jogador_id, P: 0, J: 0, V: 0, E: 0, D: 0, GP: 0, GC: 0, last: [] }]));
+  const gs = S.jogos.filter((g) => g.fase === "liga" && g.gols_mandante != null && (g.finalizado || includeOpen))
+    .sort((a, b) => a.rodada - b.rodada);
+  for (const g of gs) {
+    const h = rows.get(g.mandante), a = rows.get(g.visitante); if (!h || !a) continue;
+    const add = (r, gf, ga) => {
+      r.J++; r.GP += gf; r.GC += ga;
+      if (gf > ga) { r.V++; r.P += 3; r.last.push("V"); } else if (gf === ga) { r.E++; r.P++; r.last.push("E"); } else { r.D++; r.last.push("D"); }
+    };
+    add(h, g.gols_mandante, g.gols_visitante); add(a, g.gols_visitante, g.gols_mandante);
   }
-  renderSession(); render();
+  return [...rows.values()].sort((x, y) => y.P - x.P || y.V - x.V || (y.GP - y.GC) - (x.GP - x.GC) || y.GP - x.GP || nome(x.id).localeCompare(nome(y.id), "pt-BR"));
 }
 
-// ===== Render =====
-function renderSession() {
-  $("btnLogin").hidden = logged(); $("btnLogout").hidden = !logged();
-  $("who").hidden = !logged(); $("role").hidden = !logged();
+// Resultado de um confronto de mata-mata (1 ou 2 jogos)
+function confronto(fase, chave) {
+  const gs = S.jogos.filter((g) => g.fase === fase && g.chave === chave).sort((a, b) => a.perna - b.perna);
+  if (!gs.length) return null;
+  const last = gs[gs.length - 1];
+  const a = last.mandante, b = last.visitante; // "a" manda o jogo decisivo (melhor semente)
+  let ga = 0, gb = 0;
+  for (const g of gs) {
+    if (g.gols_mandante == null) continue;
+    if (g.mandante === a) { ga += g.gols_mandante; gb += g.gols_visitante; } else { ga += g.gols_visitante; gb += g.gols_mandante; }
+  }
+  const pa = last.penaltis_mandante, pb = last.penaltis_visitante;
+  const done = gs.every((g) => g.finalizado);
+  let winner = null;
+  if (done) winner = ga > gb ? a : gb > ga ? b : pa != null && pa !== pb ? (pa > pb ? a : b) : null;
+  return { a, b, ga, gb, pa, pb, done, winner, games: gs };
+}
+function isDecisivo(g) { return g.fase !== "liga" && g.perna === S.jogos.filter((x) => x.fase === g.fase && x.chave === g.chave).reduce((m, x) => Math.max(m, x.perna), 1); }
+// Placar agregado do confronto se este jogo tiver o placar informado
+function agregadoCom(g, gm, gv) {
+  const gs = S.jogos.filter((x) => x.fase === g.fase && x.chave === g.chave);
+  let a = 0, b = 0; // a = mandante deste jogo
+  for (const x of gs) {
+    const hm = x.id === g.id ? gm : x.gols_mandante, hv = x.id === g.id ? gv : x.gols_visitante;
+    if (hm == null) continue;
+    if (x.mandante === g.mandante) { a += hm; b += hv; } else { a += hv; b += hm; }
+  }
+  return [a, b];
+}
+function faseAtualMata() {
+  const fases = ["oitavas", "quartas", "semi", "final"].filter((f) => S.jogos.some((g) => g.fase === f));
+  return fases[fases.length - 1] || null;
+}
+function campeao() {
+  const t = T(); if (!t) return null;
+  if (t.campeao) return t.campeao;
+  if (t.formato === "pontos") {
+    const liga = S.jogos.filter((g) => g.fase === "liga");
+    if (liga.length && liga.every((g) => g.finalizado)) return standings(false)[0]?.id || null;
+    return null;
+  }
+  const c = confronto("final", 1);
+  return c?.winner || null;
+}
+
+// Tabela de rodadas (método do círculo): todos contra todos
+function roundRobin(ids, turnos) {
+  const a = shuffle(ids); if (a.length % 2) a.push(null);
+  const n = a.length, rodadas = [];
+  for (let r = 0; r < n - 1; r++) {
+    const pares = [];
+    for (let i = 0; i < n / 2; i++) {
+      const h = a[i], v = a[n - 1 - i];
+      if (h && v) pares.push(r % 2 && i === 0 ? [v, h] : [h, v]);
+    }
+    rodadas.push(pares);
+    a.splice(1, 0, a.pop());
+  }
+  const out = rodadas.map((p, i) => ({ rodada: i + 1, pares: p }));
+  if (turnos === 2) rodadas.forEach((p, i) => out.push({ rodada: n + i, pares: p.map(([h, v]) => [v, h]) }));
+  return out;
+}
+// Jogos de uma fase do mata-mata a partir de pares [melhor, pior]
+function jogosDaFase(t, fase, pares) {
+  const rows = [];
+  pares.forEach(([melhor, pior], i) => {
+    const chave = i + 1;
+    if (idaVolta(t, fase)) {
+      rows.push({ torneio_id: t.id, fase, chave, perna: 1, rodada: 1, mandante: pior, visitante: melhor });
+      rows.push({ torneio_id: t.id, fase, chave, perna: 2, rodada: 2, mandante: melhor, visitante: pior });
+    } else rows.push({ torneio_id: t.id, fase, chave, perna: 1, rodada: 1, mandante: melhor, visitante: pior });
+  });
+  return rows;
+}
+
+// ===== render =====
+function renderHeader() {
+  $("btnLogin").hidden = logged(); $("btnLogout").hidden = !logged(); $("btnPass").hidden = !logged();
+  $("who").hidden = $("role").hidden = !logged();
   if (logged()) {
-    $("who").textContent = state.me?.nome || state.user.email;
-    $("role").textContent = isAdmin() ? "Admin" : "Participante";
+    $("who").textContent = S.me?.nome || "";
+    $("role").textContent = isAdmin() ? "Admin" : "Jogador";
     $("role").className = "chip " + (isAdmin() ? "admin" : "player");
   }
-  $("newLocked").hidden = logged(); $("formGame").hidden = !logged();
-  $("formPlayer").hidden = !logged();
+  $("tabAdmin").hidden = !isAdmin();
+  const t = T();
+  $("tabMata").hidden = !temMata(t);
+  if ((S.tab === "admin" && !isAdmin()) || (S.tab === "mata" && !temMata(t))) S.tab = "tabela";
+  document.querySelectorAll("nav.tabs-top button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === S.tab));
+  const sel = $("selTorneio");
+  sel.hidden = !S.torneios.length;
+  sel.replaceChildren(...S.torneios.map((x) => el("option", { value: x.id }, x.nome + (x.status === "encerrado" ? " (encerrado)" : ""))));
+  if (S.tid) sel.value = S.tid;
 }
 
-function computeStandings(includeOpen) {
-  const rows = new Map(state.players.map((p) => [p.id, { p, P: 0, J: 0, V: 0, E: 0, D: 0, GP: 0, GC: 0, last: [] }]));
-  const games = state.games.filter((g) => g.finalizado || includeOpen)
-    .slice().sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em));
-  for (const g of games) {
-    const h = rows.get(g.mandante), a = rows.get(g.visitante);
-    if (!h || !a) continue;
-    const res = (r, gf, ga) => {
-      r.J++; r.GP += gf; r.GC += ga;
-      if (gf > ga) { r.V++; r.P += 3; r.last.push("V"); }
-      else if (gf === ga) { r.E++; r.P += 1; r.last.push("E"); }
-      else { r.D++; r.last.push("D"); }
-    };
-    res(h, g.gols_mandante, g.gols_visitante);
-    res(a, g.gols_visitante, g.gols_mandante);
-  }
-  return [...rows.values()].sort((x, y) =>
-    y.P - x.P || y.V - x.V || (y.GP - y.GC) - (x.GP - x.GC) || y.GP - x.GP || x.p.nome.localeCompare(y.p.nome, "pt-BR"));
-}
-
-function renderStandings() {
-  const inc = $("incOpen").checked;
-  $("tabSub").textContent = inc ? "Prévia: inclui jogos em aberto" : "Conta só jogos finalizados";
-  const body = $("standings"); body.replaceChildren();
-  const rows = computeStandings(inc);
-  if (!rows.length) {
-    body.append(el("tr", {}, el("td", { colspan: "11", class: "name" },
-      el("div", { class: "empty" }, "Nenhum jogador ainda. Cadastre os jogadores para montar a tabela."))));
+function render() {
+  renderHeader();
+  const v = $("view"); v.replaceChildren();
+  const t = T();
+  if (S.tab === "admin") return v.append(...viewAdmin());
+  if (!t) {
+    v.append(el("section", { class: "panel" }, el("h2", {}, "Nenhum torneio ainda"),
+      el("p", { class: "hint" }, isAdmin() ? "Crie o primeiro torneio na aba Admin: escolha o formato, os jogadores e os times." : "Quando o Anderson criar o torneio, a tabela e os jogos aparecem aqui.")));
+    if (isAdmin()) v.append(el("div", { class: "row-actions" }, el("button", { class: "btn primary", type: "button", onclick: () => go("admin") }, "Criar torneio")));
     return;
   }
+  if (S.tab === "tabela") v.append(...viewTabela(t));
+  if (S.tab === "jogos") v.append(viewJogos(t));
+  if (S.tab === "mata") v.append(viewMata(t));
+}
+function go(tab) { S.tab = tab; S.editing = null; render(); }
+
+function factsDo(t) {
+  const f = [];
+  f.push({ pontos: "Pontos corridos", pontos_mata: "Pontos corridos + mata-mata", mata: "Mata-mata" }[t.formato]);
+  if (temLiga(t)) f.push(t.turnos === 2 ? "Ida e volta" : "Turno único");
+  if (temMata(t)) {
+    const n = t.formato === "mata" ? S.parts.length : t.classificados;
+    f.push((t.formato === "pontos_mata" ? n + " classificados · " : "") + "começa na " + (FASES[FASE_POR_N[n]] || "—").toLowerCase());
+    f.push("mata-mata " + (t.mata_ida_volta ? "ida e volta" : "jogo único"));
+    f.push("final " + (t.final_ida_volta ? "ida e volta" : "jogo único"));
+  }
+  f.push(S.parts.length + " jogadores");
+  return el("div", { class: "facts" }, f.map((x) => el("span", { class: "fact" }, x)));
+}
+
+function viewTabela(t) {
+  const out = [];
+  const c = campeao();
+  if (c) out.push(el("div", { class: "champion" }, el("span", { class: "cup", "aria-hidden": "true" }, "🏆"),
+    el("div", {}, el("span", { class: "sub", style: "color:inherit;opacity:.8" }, "Campeão · " + t.nome), el("b", {}, nome(c)), time(c) ? el("span", {}, time(c)) : null)));
+
+  if (!temLiga(t)) {
+    out.push(el("section", { class: "panel" }, el("h2", {}, t.nome), factsDo(t), el("p", { class: "hint", style: "margin-top:12px" }, "Torneio só de mata-mata. Veja o chaveamento na aba Mata-mata."),
+      el("div", { class: "row-actions", style: "margin-top:10px" }, el("button", { class: "btn primary", type: "button", onclick: () => go("mata") }, "Ver chaveamento"))));
+    return out;
+  }
+  const rows = standings(S.incOpen);
+  const q = t.formato === "pontos_mata" ? t.classificados : 0;
+  const body = el("tbody");
   rows.forEach((r, i) => {
     const sg = r.GP - r.GC;
-    body.append(el("tr", { class: i === 0 && r.J ? "leader" : "" },
+    body.append(el("tr", { class: i < q ? "q" : "" },
       el("td", { class: "pos" }, String(i + 1)),
-      el("td", { class: "name" }, r.p.nome, r.p.time ? el("span", { class: "team" }, r.p.time) : null),
-      el("td", { class: "pts" }, String(r.P)),
-      el("td", {}, String(r.J)), el("td", {}, String(r.V)), el("td", {}, String(r.E)), el("td", {}, String(r.D)),
-      el("td", {}, String(r.GP)), el("td", {}, String(r.GC)),
-      el("td", {}, (sg > 0 ? "+" : "") + sg),
-      el("td", {}, el("span", { class: "form-dots" }, r.last.slice(-5).map((x) => el("span", { class: "dot " + x, title: { V: "Vitória", E: "Empate", D: "Derrota" }[x] }, x))))
-    ));
+      el("td", { class: "name" }, nome(r.id), time(r.id) ? el("span", { class: "team" }, time(r.id)) : null),
+      el("td", { class: "pts" }, String(r.P)), el("td", {}, String(r.J)), el("td", {}, String(r.V)), el("td", {}, String(r.E)), el("td", {}, String(r.D)),
+      el("td", {}, String(r.GP)), el("td", {}, String(r.GC)), el("td", {}, (sg > 0 ? "+" : "") + sg),
+      el("td", {}, el("span", { class: "form-dots" }, r.last.slice(-5).map((x) => el("span", { class: "dot " + x, title: { V: "Vitória", E: "Empate", D: "Derrota" }[x] }, x))))));
   });
+  const liga = S.jogos.filter((g) => g.fase === "liga");
+  const feitos = liga.filter((g) => g.finalizado).length;
+  const inc = el("input", { type: "checkbox", id: "incOpen", onchange: (e) => { S.incOpen = e.target.checked; render(); } });
+  inc.checked = S.incOpen;
+  out.push(el("section", { class: "panel" },
+    el("h2", {}, t.nome, el("span", { class: "sub" }, `${feitos} de ${liga.length} jogos finalizados`)),
+    factsDo(t),
+    el("div", { class: "table-wrap", style: "margin-top:12px" }, el("table", {},
+      el("thead", {}, el("tr", {}, ["#", "Jogador", "P", "J", "V", "E", "D", "GP", "GC", "SG", "Últimos"].map((h, i) => el("th", { class: i === 1 ? "name" : "" }, h)))), body)),
+    el("div", { class: "legend" },
+      q ? el("span", {}, el("span", { class: "qmark" }), ` Top ${q} vão para o mata-mata`) : null,
+      el("span", {}, "Vitória 3 · Empate 1 · Desempate: vitórias, saldo, gols pró"),
+      el("label", {}, inc, "Incluir jogos não finalizados (prévia)"))));
+  return out;
 }
-
-function renderPlayers() {
-  const box = $("players"); box.replaceChildren();
-  $("plCount").textContent = state.players.length ? state.players.length + " cadastrados" : "";
-  if (!state.players.length) { box.append(el("div", { class: "empty", style: "width:100%" }, logged() ? "Adicione o primeiro jogador abaixo." : "Nenhum jogador cadastrado.")); }
-  for (const p of state.players) {
-    const chip = el("span", { class: "player" }, p.nome, p.time ? el("span", { class: "t" }, p.time) : null);
-    if (isAdmin()) chip.append(armed(el("button", { type: "button", title: "Remover jogador", "aria-label": "Remover " + p.nome }, "×"), "Remover?", async () => {
-      const { error } = await sb.from("jogadores").delete().eq("id", p.id);
-      if (error) toast(errText(error)); else { toast("Jogador removido"); await loadAll(); }
-    }));
-    box.append(chip);
-  }
-  // selects do lançamento
-  for (const id of ["gHome", "gAway"]) {
-    const s = $(id), cur = s.value; s.replaceChildren(el("option", { value: "" }, "Escolha…"));
-    for (const p of state.players) s.append(el("option", { value: p.id }, p.nome + (p.time ? " (" + p.time + ")" : "")));
-    s.value = state.players.some((p) => p.id === cur) ? cur : "";
-  }
-}
-
-function canEditGame(g) { return logged() && (!g.finalizado || isAdmin()); }
-function canDeleteGame(g) { return logged() && (isAdmin() || (!g.finalizado && g.criado_por === state.user.id)); }
 
 function gameCard(g) {
-  const editing = state.editing === g.id;
-  const score = editing
-    ? el("span", { class: "sc" },
-        el("input", { type: "number", min: "0", max: "99", value: g.gols_mandante, id: "eh-" + g.id, "aria-label": "Gols " + pname(g.mandante) }),
-        " × ",
-        el("input", { type: "number", min: "0", max: "99", value: g.gols_visitante, id: "ea-" + g.id, "aria-label": "Gols " + pname(g.visitante) }))
-    : el("span", { class: "sc" }, g.gols_mandante + " × " + g.gols_visitante);
-
-  const info = g.finalizado
-    ? `Finalizado por ${uname(g.finalizado_por)} em ${fmtDate(g.finalizado_em)}`
-    : `Lançado por ${uname(g.criado_por)} em ${fmtDate(g.criado_em)}` + (g.atualizado_por && g.atualizado_por !== g.criado_por ? ` · corrigido por ${uname(g.atualizado_por)}` : "");
-
+  const t = T();
+  const editavel = logged() && (!g.finalizado || (isAdmin() && S.editing === g.id));
+  const meu = meuJogador();
+  const decis = isDecisivo(g);
+  const nm = (id) => [nome(id), time(id) ? el("small", {}, time(id)) : null];
+  let score, pens = null;
+  if (editavel) {
+    const ih = el("input", { type: "number", min: "0", max: "99", inputmode: "numeric", id: "gh-" + g.id, "aria-label": "Gols " + nome(g.mandante), value: g.gols_mandante ?? "" });
+    const iv = el("input", { type: "number", min: "0", max: "99", inputmode: "numeric", id: "gv-" + g.id, "aria-label": "Gols " + nome(g.visitante), value: g.gols_visitante ?? "" });
+    score = el("span", { class: "sc" }, ih, "×", iv);
+    if (decis) pens = el("div", { class: "pens" }, "Pênaltis (se empatar no " + (idaVolta(t, g.fase) ? "agregado" : "jogo") + "):",
+      el("input", { type: "number", min: "0", max: "99", id: "ph-" + g.id, "aria-label": "Pênaltis " + nome(g.mandante), value: g.penaltis_mandante ?? "" }), "×",
+      el("input", { type: "number", min: "0", max: "99", id: "pv-" + g.id, "aria-label": "Pênaltis " + nome(g.visitante), value: g.penaltis_visitante ?? "" }));
+  } else {
+    score = el("span", { class: "sc" + (g.gols_mandante == null ? " empty" : "") }, g.gols_mandante == null ? "– × –" : `${g.gols_mandante} × ${g.gols_visitante}`);
+    if (g.penaltis_mandante != null) pens = el("div", { class: "pens" }, `Pênaltis: ${g.penaltis_mandante} × ${g.penaltis_visitante}`);
+  }
+  const st = g.finalizado ? ["final", "🔒 Finalizado"] : g.gols_mandante != null ? ["played", "Placar salvo"] : ["todo", "A jogar"];
+  const info = g.finalizado ? `por ${perfilNome(g.finalizado_por)}` : g.atualizado_por ? `atualizado por ${perfilNome(g.atualizado_por)}` : "";
   const acts = el("span", { class: "acts" });
-  if (editing) {
-    acts.append(
-      el("button", { class: "btn small primary", type: "button", onclick: () => saveEdit(g) }, "Salvar"),
-      el("button", { class: "btn small", type: "button", onclick: () => { state.editing = null; renderGames(); } }, "Cancelar"));
-  } else {
-    if (canEditGame(g)) acts.append(el("button", { class: "btn small", type: "button", onclick: () => { state.editing = g.id; renderGames(); } }, "Editar"));
-    if (logged() && !g.finalizado) acts.append(armed(el("button", { class: "btn small primary", type: "button" }, "Finalizar"), "Confirmar?", () => setFinal(g, true)));
-    if (isAdmin() && g.finalizado) acts.append(armed(el("button", { class: "btn small", type: "button" }, "Reabrir"), "Confirmar?", () => setFinal(g, false)));
-    if (canDeleteGame(g)) acts.append(armed(el("button", { class: "btn small danger", type: "button" }, "Excluir"), "Excluir?", () => delGame(g)));
+  if (editavel) {
+    acts.append(el("button", { class: "btn small", type: "button", onclick: () => salvarPlacar(g, g.finalizado) }, "Salvar"));
+    if (!g.finalizado) acts.append(armed(el("button", { class: "btn small primary", type: "button" }, "Finalizar"), "Confirmar?", () => salvarPlacar(g, true)));
+    if (S.editing === g.id) acts.append(el("button", { class: "btn small", type: "button", onclick: () => { S.editing = null; render(); } }, "Cancelar"));
+  } else if (isAdmin() && g.finalizado) {
+    acts.append(el("button", { class: "btn small", type: "button", onclick: () => { S.editing = g.id; render(); } }, "Corrigir"),
+      armed(el("button", { class: "btn small", type: "button" }, "Reabrir"), "Confirmar?", () => reabrir(g)));
   }
-  return el("article", { class: "game " + (g.finalizado ? "final" : "open") },
-    el("div", { class: "board" },
-      el("span", { class: "p home" }, pname(g.mandante)), score, el("span", { class: "p" }, pname(g.visitante))),
-    el("div", { class: "meta" },
-      el("span", {}, el("span", { class: "status " + (g.finalizado ? "final" : "open") }, g.finalizado ? "🔒 Finalizado" : "Em aberto"), " ", info),
-      acts));
+  const mine = meu && (g.mandante === meu || g.visitante === meu);
+  return el("article", { class: "game " + st[0] + (mine ? " mine" : "") },
+    el("div", { class: "board" }, el("span", { class: "p home" }, nm(g.mandante)), score, el("span", { class: "p" }, nm(g.visitante))),
+    pens,
+    el("div", { class: "meta" }, el("span", {}, el("span", { class: "status " + st[0] }, st[1]), " ", info), acts));
 }
 
-function renderGames() {
-  const open = state.games.filter((g) => !g.finalizado), fin = state.games.filter((g) => g.finalizado);
-  $("nOpen").textContent = open.length; $("nFinal").textContent = fin.length;
-  $("tabOpen").setAttribute("aria-selected", state.tab === "open"); $("tabFinal").setAttribute("aria-selected", state.tab === "final");
-  const list = state.tab === "open" ? open : fin;
-  const box = $("games"); box.replaceChildren();
-  if (!list.length) box.append(el("div", { class: "empty" }, state.tab === "open" ? "Nenhum jogo em aberto. Lance um resultado acima." : "Nenhum jogo finalizado ainda."));
-  for (const g of list) box.append(gameCard(g));
+function viewJogos(t) {
+  const meu = meuJogador();
+  const filtros = [["todos", "Todos"], ["pendentes", "Não finalizados"], ...(meu ? [["meus", "Meus jogos"]] : [])];
+  let gs = S.jogos.slice();
+  if (S.filtro === "pendentes") gs = gs.filter((g) => !g.finalizado);
+  if (S.filtro === "meus" && meu) gs = gs.filter((g) => g.mandante === meu || g.visitante === meu);
+  const ordemFase = { liga: 0, oitavas: 1, quartas: 2, semi: 3, final: 4 };
+  gs.sort((a, b) => ordemFase[a.fase] - ordemFase[b.fase] || a.rodada - b.rodada || (a.chave || 0) - (b.chave || 0) || a.perna - b.perna);
+  const box = el("div", {});
+  let atual = null;
+  for (const g of gs) {
+    const grupo = g.fase === "liga" ? `Rodada ${g.rodada}` : FASES[g.fase] + (idaVolta(t, g.fase) ? (g.perna === 1 ? " · ida" : " · volta") : "");
+    if (grupo !== atual) { box.append(el("h3", { class: "group" }, grupo)); atual = grupo; box.append(el("div", { class: "games" })); }
+    box.lastChild.append(gameCard(g));
+  }
+  if (!gs.length) box.append(el("div", { class: "empty-box" }, S.jogos.length ? "Nenhum jogo neste filtro." : "Nenhum jogo gerado ainda."));
+  return el("section", { class: "panel" },
+    el("h2", {}, "Jogos", el("span", { class: "sub" }, logged() ? "Lance o placar e clique em Finalizar. Depois de finalizado, só o admin corrige." : "Entre para lançar placares.")),
+    el("div", { class: "filters" }, filtros.map(([k, l]) => el("button", { class: "pill", type: "button", "aria-pressed": String(S.filtro === k), onclick: () => { S.filtro = k; render(); } }, l))),
+    box);
 }
 
-function render() { renderStandings(); renderPlayers(); renderGames(); }
+function viewMata(t) {
+  const n = t.formato === "mata" ? S.parts.length : t.classificados;
+  let fase = FASE_POR_N[n];
+  const cols = [];
+  let qtd = n / 2;
+  while (fase) {
+    const col = el("div", { class: "round" }, el("h4", {}, FASES[fase]));
+    for (let k = 1; k <= qtd; k++) {
+      const c = confronto(fase, k);
+      if (!c) { col.append(el("div", { class: "tie tbd" }, el("div", { class: "row" }, el("span"), el("span", {}, "A definir"), el("span")), el("div", { class: "row" }, el("span"), el("span", {}, "A definir"), el("span")))); continue; }
+      const seed = (id) => part(id)?.semente ?? "";
+      const played = c.games.some((g) => g.gols_mandante != null);
+      const row = (id, gols, pen) => el("div", { class: "row" + (c.winner === id ? " w" : "") },
+        el("span", { class: "seed" }, String(seed(id))),
+        el("span", {}, nome(id), time(id) ? el("span", { class: "team" }, time(id)) : null),
+        el("span", { class: "agg" }, played ? String(gols) + (pen != null ? ` (${pen})` : "") : "–"));
+      const legs = c.games.length > 1 ? el("div", { class: "legs" }, c.games.map((g) => `${g.perna === 1 ? "Ida" : "Volta"}: ${g.gols_mandante ?? "–"}×${g.gols_visitante ?? "–"}`).join(" · ")) : null;
+      col.append(el("div", { class: "tie" }, row(c.a, c.ga, c.pa), row(c.b, c.gb, c.pb), legs));
+    }
+    cols.push(col); fase = PROXIMA[fase]; qtd /= 2;
+  }
+  const ligaPend = temLiga(t) && !S.jogos.some((g) => g.fase !== "liga");
+  return el("section", { class: "panel" },
+    el("h2", {}, "Mata-mata", el("span", { class: "sub" }, ligaPend ? `Os ${n} primeiros da tabela entram aqui quando a fase de pontos terminar.` : "Placar agregado; pênaltis entre parênteses.")),
+    el("div", { class: "bracket" }, cols));
+}
 
-// ===== Ações =====
-async function saveEdit(g) {
-  const h = parseInt($("eh-" + g.id).value, 10), a = parseInt($("ea-" + g.id).value, 10);
-  if (![h, a].every((n) => n >= 0 && n <= 99)) return toast("Placar inválido (0 a 99).");
-  const { data, error } = await sb.from("jogos").update({ gols_mandante: h, gols_visitante: a }).eq("id", g.id).select();
+// ===== Admin =====
+function viewAdmin() {
+  const out = [];
+  const t = T();
+  if (t) out.push(painelTorneio(t));
+  out.push(novoTorneio());
+  return out;
+}
+
+function painelTorneio(t) {
+  const m = el("p", { class: "msg", hidden: true });
+  const acoes = el("div", { class: "row-actions" });
+  const liga = S.jogos.filter((g) => g.fase === "liga");
+  const fase = faseAtualMata();
+  if (t.formato === "pontos_mata" && !fase) {
+    const pronto = liga.length && liga.every((g) => g.finalizado);
+    acoes.append(armed(el("button", { class: "btn primary", type: "button", disabled: !pronto }, "Gerar mata-mata com os " + t.classificados + " primeiros"), "Confirmar?", () => gerarMataDaLiga(t, m)));
+    if (!pronto) acoes.append(el("span", { class: "hint" }, `Libera quando os ${liga.length} jogos da fase de pontos estiverem finalizados.`));
+  }
+  if (fase && PROXIMA[fase]) {
+    const n = S.jogos.filter((g) => g.fase === fase).reduce((s, g) => Math.max(s, g.chave), 0);
+    const pronto = Array.from({ length: n }, (_, i) => confronto(fase, i + 1)).every((c) => c?.winner);
+    acoes.append(armed(el("button", { class: "btn primary", type: "button", disabled: !pronto }, "Gerar " + FASES[PROXIMA[fase]].toLowerCase()), "Confirmar?", () => gerarProxima(t, fase, m)));
+    if (!pronto) acoes.append(el("span", { class: "hint" }, "Libera quando todos os confrontos da fase atual estiverem decididos."));
+  }
+  const c = campeao();
+  if (t.status === "andamento" && c) acoes.append(armed(el("button", { class: "btn primary", type: "button" }, "Encerrar torneio · campeão " + nome(c)), "Confirmar?", async () => {
+    const { error } = await sb.from("torneios").update({ status: "encerrado", campeao: c }).eq("id", t.id);
+    if (error) return msg(m, errText(error)); toast("Torneio encerrado"); await loadBase();
+  }));
+  acoes.append(armed(el("button", { class: "btn danger", type: "button" }, "Excluir torneio"), "Excluir tudo?", async () => {
+    const { error } = await sb.from("torneios").delete().eq("id", t.id);
+    if (error) return msg(m, errText(error)); S.tid = null; toast("Torneio excluído"); await loadBase();
+  }));
+
+  // times dos participantes
+  const lista = el("div", { class: "plist" });
+  for (const p of S.parts.slice().sort((a, b) => nome(a.jogador_id).localeCompare(nome(b.jogador_id), "pt-BR"))) {
+    const inp = el("input", { class: "tinput", list: "dlTimes", maxlength: "40", id: "tm-" + p.jogador_id, value: p.time || "", placeholder: "Time" });
+    lista.append(el("div", { class: "prow" }, el("span", { class: "seed" }, p.semente ? "#" + p.semente : ""), el("strong", {}, nome(p.jogador_id)), inp));
+  }
+  return el("section", { class: "panel" },
+    el("h2", {}, "Torneio atual", el("span", { class: "sub" }, t.nome)),
+    el("div", { class: "stack" }, factsDo(t), acoes, m,
+      el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Times"), lista,
+        el("div", { class: "row-actions" }, el("button", { class: "btn", type: "button", onclick: async () => {
+          for (const p of S.parts) {
+            const v = $("tm-" + p.jogador_id).value.trim() || null;
+            if (v !== (p.time || null)) { const { error } = await sb.from("participantes").update({ time: v }).eq("torneio_id", t.id).eq("jogador_id", p.jogador_id); if (error) return msg(m, errText(error)); }
+          }
+          toast("Times salvos"); await loadTorneio(); go("admin");
+        } }, "Salvar times")))));
+}
+
+function datalistTimes() { return el("datalist", { id: "dlTimes" }, Object.values(TEAMS).flat().map((x) => el("option", { value: x }))); }
+
+function novoTorneio() {
+  const f = { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0" };
+  const radio = (name, value, titulo, desc, checked) => el("label", {}, el("input", { type: "radio", name, value, checked }), el("b", {}, titulo), el("span", {}, desc));
+  const jogadores = S.jogadores.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const lista = el("div", { class: "plist" }, jogadores.map((j) => el("div", { class: "prow two" },
+    el("label", {}, el("input", { type: "checkbox", class: "pchk", value: j.id, checked: true }), j.nome),
+    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)" }))));
+
+  const pool = el("select", { class: "tinput", style: "width:auto" }, Object.keys(TEAMS).map((k) => el("option", { value: k }, k)));
+  const sortear = el("button", { class: "btn", type: "button", onclick: () => {
+    const sel = [...lista.querySelectorAll(".pchk:checked")].map((c) => c.value);
+    const times = shuffle(TEAMS[pool.value]);
+    if (times.length < sel.length) return toast("Essa lista não tem times suficientes.");
+    sel.forEach((id, i) => { lista.querySelector(`.ptime[data-id="${id}"]`).value = times[i]; });
+  } }, "Sortear times");
+
+  const form = el("form", { class: "stack", id: "formNovo" },
+    el("div", { class: "field" }, el("label", { for: "tNome" }, "Nome do torneio"), el("input", { id: "tNome", maxlength: "60", required: true, value: "Copa FIFA " + new Date().getFullYear() })),
+    el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Jogadores e times"), lista,
+      el("div", { class: "row-actions" }, pool, sortear, el("span", { class: "hint" }, "ou digite o time de cada um"))),
+    el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Formato"),
+      el("div", { class: "choice" },
+        radio("formato", "pontos", "Pontos corridos", "Todos contra todos. Campeão é quem somar mais pontos."),
+        radio("formato", "pontos_mata", "Pontos + mata-mata", "Todos contra todos e os melhores vão para o mata-mata.", true),
+        radio("formato", "mata", "Só mata-mata", "Chaveamento sorteado direto. Precisa de 2, 4 ou 8 jogadores."))),
+    el("div", { class: "stack", style: "gap:8px", id: "bLiga" }, el("span", { class: "lbl" }, "Fase de pontos"),
+      el("div", { class: "choice" },
+        radio("turnos", "1", "Turno único", "Cada dupla joga 1 vez.", true),
+        radio("turnos", "2", "Ida e volta", "Cada dupla joga 2 vezes, uma em cada mando."))),
+    el("div", { class: "stack", style: "gap:8px", id: "bClass" }, el("span", { class: "lbl" }, "Quantos vão para o mata-mata"),
+      el("div", { class: "choice" },
+        radio("classificados", "2", "Final direta", "Os 2 primeiros decidem o título."),
+        radio("classificados", "4", "Semifinal", "Os 4 primeiros: 1º×4º e 2º×3º.", true),
+        radio("classificados", "8", "Quartas de final", "Os 8 primeiros: 1º×8º, 2º×7º…"))),
+    el("div", { class: "stack", style: "gap:8px", id: "bMata" }, el("span", { class: "lbl" }, "Jogos do mata-mata"),
+      el("div", { class: "choice" },
+        radio("mata", "0", "Jogo único", "Empatou, pênaltis. Melhor campanha tem o mando.", true),
+        radio("mata", "1", "Ida e volta", "Vale o agregado. Melhor campanha decide em casa.")),
+      el("div", { class: "choice" },
+        radio("final", "0", "Final em jogo único", "Um jogo só decide o título.", true),
+        radio("final", "1", "Final ida e volta", "Dois jogos, vale o agregado."))),
+    el("div", { class: "summary", id: "tResumo" }),
+    el("p", { class: "msg", id: "tMsg", hidden: true }),
+    el("div", { class: "row-actions" }, el("button", { class: "btn primary", type: "submit", id: "tCriar" }, "Criar torneio e gerar jogos")));
+
+  const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+  function atualizar() {
+    const n = form.querySelectorAll(".pchk:checked").length;
+    const fmt = val("formato");
+    form.querySelector("#bLiga").hidden = fmt === "mata";
+    form.querySelector("#bClass").hidden = fmt !== "pontos_mata";
+    form.querySelector("#bMata").hidden = fmt === "pontos";
+    form.querySelectorAll('input[name="classificados"]').forEach((r) => { r.disabled = +r.value > n; if (r.disabled && r.checked) { const ok = [...form.querySelectorAll('input[name="classificados"]')].filter((x) => +x.value <= n).pop(); if (ok) ok.checked = true; } });
+    const turnos = +val("turnos"), mv = val("mata") === "1", fv = val("final") === "1";
+    let ligaJogos = 0, mataJogos = 0, linhas = [], erro = "";
+    if (n < 2) erro = "Escolha pelo menos 2 jogadores.";
+    if (fmt !== "mata") {
+      ligaJogos = (n * (n - 1) / 2) * turnos;
+      const rods = (n % 2 ? n : n - 1) * turnos;
+      linhas.push(`Fase de pontos: ${ligaJogos} jogos em ${rods} rodadas` + (n % 2 ? " (1 folga por rodada)" : ""));
+    }
+    if (fmt !== "pontos") {
+      const k = fmt === "mata" ? n : +val("classificados");
+      if (fmt === "mata" && ![2, 4, 8].includes(n)) erro = `Só mata-mata precisa de 2, 4 ou 8 jogadores (marcados: ${n}).`;
+      else {
+        let q = k / 2, fase = FASE_POR_N[k];
+        while (fase) { mataJogos += q * ((fase === "final" ? fv : mv) ? 2 : 1); fase = PROXIMA[fase]; q /= 2; }
+        linhas.push(`Mata-mata: começa na ${FASES[FASE_POR_N[k]].toLowerCase()}, ${mataJogos} jogos no máximo`);
+      }
+    }
+    const resumo = form.querySelector("#tResumo"); resumo.replaceChildren();
+    if (erro) resumo.append(el("span", {}, erro));
+    else resumo.append(el("b", {}, String(ligaJogos + mataJogos)), " jogos no total · " + n + " jogadores", el("br"), linhas.join(" · "));
+    form.querySelector("#tCriar").disabled = !!erro;
+  }
+  form.addEventListener("change", atualizar);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const m = form.querySelector("#tMsg");
+    const ids = [...form.querySelectorAll(".pchk:checked")].map((c) => c.value);
+    const fmt = val("formato");
+    const novo = {
+      nome: form.querySelector("#tNome").value.trim(), formato: fmt,
+      turnos: fmt === "mata" ? 1 : +val("turnos"),
+      classificados: fmt === "pontos_mata" ? +val("classificados") : fmt === "mata" ? ids.length : null,
+      mata_ida_volta: fmt !== "pontos" && val("mata") === "1",
+      final_ida_volta: fmt !== "pontos" && val("final") === "1",
+    };
+    const btn = form.querySelector("#tCriar"); btn.disabled = true;
+    try {
+      const { data: t, error } = await sb.from("torneios").insert(novo).select().single();
+      if (error) throw error;
+      const sementes = shuffle(ids);
+      const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null }));
+      const r1 = await sb.from("participantes").insert(parts); if (r1.error) throw r1.error;
+      let jogos = [];
+      if (fmt !== "mata") for (const r of roundRobin(ids, novo.turnos)) for (const [h, v] of r.pares) jogos.push({ torneio_id: t.id, fase: "liga", rodada: r.rodada, mandante: h, visitante: v });
+      else {
+        const porSemente = (s) => sementes[s - 1];
+        jogos = jogosDaFase(t, FASE_POR_N[ids.length], CHAVES[ids.length].map(([a, b]) => [porSemente(a), porSemente(b)]));
+      }
+      const r2 = await sb.from("jogos").insert(jogos); if (r2.error) throw r2.error;
+      S.tid = t.id; store.set("torneio", t.id);
+      toast("Torneio criado com " + jogos.length + " jogos");
+      S.tab = fmt === "mata" ? "mata" : "jogos";
+      await loadBase();
+    } catch (err) { msg(m, errText(err)); btn.disabled = false; }
+  });
+  queueMicrotask(atualizar);
+  return el("section", { class: "panel" }, el("h2", {}, "Novo torneio", el("span", { class: "sub" }, "Os jogos são gerados automaticamente")), form);
+}
+
+async function gerarMataDaLiga(t, m) {
+  const top = standings(false).slice(0, t.classificados).map((r) => r.id);
+  for (let i = 0; i < top.length; i++) {
+    const { error } = await sb.from("participantes").update({ semente: i + 1 }).eq("torneio_id", t.id).eq("jogador_id", top[i]);
+    if (error) return msg(m, errText(error));
+  }
+  const fase = FASE_POR_N[t.classificados];
+  const jogos = jogosDaFase(t, fase, CHAVES[t.classificados].map(([a, b]) => [top[a - 1], top[b - 1]]));
+  const { error } = await sb.from("jogos").insert(jogos);
+  if (error) return msg(m, errText(error));
+  toast(FASES[fase] + " gerada"); S.tab = "mata"; await loadTorneio();
+}
+async function gerarProxima(t, fase, m) {
+  const n = S.jogos.filter((g) => g.fase === fase).reduce((s, g) => Math.max(s, g.chave), 0);
+  const vencedores = Array.from({ length: n }, (_, i) => confronto(fase, i + 1).winner);
+  const sem = (id) => part(id)?.semente ?? 99;
+  const pares = [];
+  for (let i = 0; i < vencedores.length; i += 2) {
+    const [x, y] = [vencedores[i], vencedores[i + 1]];
+    pares.push(sem(x) <= sem(y) ? [x, y] : [y, x]);
+  }
+  const prox = PROXIMA[fase];
+  const { error } = await sb.from("jogos").insert(jogosDaFase(t, prox, pares));
+  if (error) return msg(m, errText(error));
+  toast(FASES[prox] + " gerada"); S.tab = "mata"; await loadTorneio();
+}
+
+// ===== ações de placar =====
+function lerNum(id) { const v = $(id)?.value.trim(); if (v === "" || v == null) return null; const n = Number(v); return Number.isInteger(n) && n >= 0 && n <= 99 ? n : NaN; }
+async function salvarPlacar(g, finalizar) {
+  const gm = lerNum("gh-" + g.id), gv = lerNum("gv-" + g.id);
+  if ([gm, gv].some((x) => Number.isNaN(x))) return toast("Placar inválido (use 0 a 99).");
+  if ((gm == null) !== (gv == null)) return toast("Preencha os gols dos dois lados.");
+  if (finalizar && gm == null) return toast("Preencha o placar antes de finalizar.");
+  const upd = { gols_mandante: gm, gols_visitante: gv };
+  if (isDecisivo(g)) {
+    let pm = lerNum("ph-" + g.id), pv = lerNum("pv-" + g.id);
+    if ([pm, pv].some((x) => Number.isNaN(x))) return toast("Pênaltis inválidos.");
+    const [a, b] = gm == null ? [0, 1] : agregadoCom(g, gm, gv);
+    if (a !== b) { pm = null; pv = null; }
+    else if (finalizar && (pm == null || pv == null || pm === pv)) return toast("Empate no " + (idaVolta(T(), g.fase) ? "agregado" : "jogo") + ": informe o vencedor nos pênaltis.");
+    if ((pm == null) !== (pv == null)) return toast("Preencha os pênaltis dos dois lados.");
+    upd.penaltis_mandante = pm; upd.penaltis_visitante = pv;
+  }
+  if (finalizar) upd.finalizado = true;
+  const { data, error } = await sb.from("jogos").update(upd).eq("id", g.id).select();
   if (error) return toast(errText(error));
-  if (!data?.length) { state.editing = null; await loadAll(); return toast("Jogo finalizado: só o administrador pode alterar."); }
-  state.editing = null; toast("Placar atualizado"); await loadAll();
+  if (!data?.length) { await loadTorneio(); return toast("Jogo finalizado: só o admin pode alterar."); }
+  S.editing = null; toast(finalizar ? "Jogo finalizado" : "Placar salvo"); await loadTorneio();
 }
-async function setFinal(g, v) {
-  const { data, error } = await sb.from("jogos").update({ finalizado: v }).eq("id", g.id).select();
-  if (error) return toast(errText(error));
-  if (!data?.length) return toast("Você não tem permissão para essa ação.");
-  toast(v ? "Jogo finalizado e travado" : "Jogo reaberto"); await loadAll();
-}
-async function delGame(g) {
-  const { data, error } = await sb.from("jogos").delete().eq("id", g.id).select();
-  if (error) return toast(errText(error));
-  if (!data?.length) return toast("Você não tem permissão para excluir esse jogo.");
-  toast("Jogo excluído"); await loadAll();
+async function reabrir(g) {
+  const { data, error } = await sb.from("jogos").update({ finalizado: false }).eq("id", g.id).select();
+  if (error || !data?.length) return toast(error ? errText(error) : "Sem permissão.");
+  toast("Jogo reaberto"); await loadTorneio();
 }
 
-$("formGame").addEventListener("submit", async (e) => {
+// ===== login =====
+function abrirLogin() {
+  const sel = $("lUser");
+  sel.replaceChildren(el("option", { value: "" }, "Escolha seu nome…"), ...S.perfis.filter((p) => p.usuario).map((p) => el("option", { value: p.usuario }, p.nome)));
+  const last = store.get("usuario"); if (last) sel.value = last;
+  $("lPass").value = ""; msg($("lMsg"), ""); $("dlgLogin").showModal();
+  (sel.value ? $("lPass") : sel).focus();
+}
+$("formLogin").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const fin = e.submitter?.dataset.final === "1";
-  const row = { mandante: $("gHome").value, visitante: $("gAway").value,
-    gols_mandante: parseInt($("gHomeG").value, 10), gols_visitante: parseInt($("gAwayG").value, 10), finalizado: fin };
-  if (!row.mandante || !row.visitante) return showMsg($("gMsg"), "Escolha os dois jogadores.");
-  if (row.mandante === row.visitante) return showMsg($("gMsg"), "Mandante e visitante precisam ser diferentes.");
-  if (![row.gols_mandante, row.gols_visitante].every((n) => n >= 0 && n <= 99)) return showMsg($("gMsg"), "Placar inválido (0 a 99).");
-  const btns = $("formGame").querySelectorAll("button"); btns.forEach((b) => (b.disabled = true));
-  const { error } = await sb.from("jogos").insert(row);
-  btns.forEach((b) => (b.disabled = false));
-  if (error) return showMsg($("gMsg"), errText(error));
-  showMsg($("gMsg"), fin ? "Resultado salvo e finalizado." : "Resultado salvo em aberto.", true);
-  $("gHomeG").value = 0; $("gAwayG").value = 0;
-  state.tab = fin ? "final" : "open"; await loadAll();
+  const u = $("lUser").value; if (!u) return msg($("lMsg"), "Escolha seu nome.");
+  $("lGo").disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: `${u}@${LOGIN_DOMAIN}`, password: $("lPass").value });
+  $("lGo").disabled = false;
+  if (error) return msg($("lMsg"), errText(error));
+  store.set("usuario", u); $("dlgLogin").close(); toast("Bem-vindo!");
 });
-
-$("formPlayer").addEventListener("submit", async (e) => {
+$("formPass").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const nome = $("plName").value.trim(), time = $("plTeam").value.trim() || null;
-  if (!nome) return;
-  const { error } = await sb.from("jogadores").insert({ nome, time });
-  if (error) return showMsg($("plMsg"), errText(error));
-  $("plName").value = ""; $("plTeam").value = ""; showMsg($("plMsg"), "");
-  toast(nome + " adicionado"); await loadAll();
+  const a = $("pNew").value, b = $("pNew2").value;
+  if (a !== b) return msg($("pMsg"), "As senhas não são iguais.");
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) return msg($("pMsg"), errText(error));
+  $("dlgPass").close(); toast("Senha alterada");
 });
-
-$("incOpen").addEventListener("change", renderStandings);
-$("tabOpen").addEventListener("click", () => { state.tab = "open"; renderGames(); });
-$("tabFinal").addEventListener("click", () => { state.tab = "final"; renderGames(); });
-
-// ===== Login =====
-let signup = false;
-function setMode(s) {
-  signup = s;
-  $("authTitle").textContent = s ? "Criar conta" : "Entrar";
-  $("aSubmit").textContent = s ? "Criar conta" : "Entrar";
-  $("fName").hidden = !s; $("aName").required = s;
-  $("aPass").autocomplete = s ? "new-password" : "current-password";
-  $("aSwitch").firstChild.textContent = s ? "Já tem conta? " : "Ainda não tem conta? ";
-  $("aToggle").textContent = s ? "Entrar" : "Criar conta";
-  showMsg($("aMsg"), "");
-}
-function openAuth() { setMode(false); $("dlg").showModal(); $("aEmail").focus(); }
-$("btnLogin").addEventListener("click", openAuth);
-$("btnLogin2").addEventListener("click", openAuth);
-$("aCancel").addEventListener("click", () => $("dlg").close());
-$("aToggle").addEventListener("click", () => setMode(!signup));
+document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+$("btnLogin").addEventListener("click", abrirLogin);
+$("btnPass").addEventListener("click", () => { $("pNew").value = $("pNew2").value = ""; msg($("pMsg"), ""); $("dlgPass").showModal(); });
 $("btnLogout").addEventListener("click", async () => { await sb.auth.signOut(); toast("Você saiu"); });
-$("formAuth").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = $("aEmail").value.trim(), password = $("aPass").value;
-  $("aSubmit").disabled = true;
-  let res;
-  if (signup) {
-    res = await sb.auth.signUp({ email, password, options: { data: { nome: $("aName").value.trim() }, emailRedirectTo: location.origin + location.pathname } });
-  } else {
-    res = await sb.auth.signInWithPassword({ email, password });
-  }
-  $("aSubmit").disabled = false;
-  if (res.error) return showMsg($("aMsg"), errText(res.error));
-  if (signup && !res.data.session) return showMsg($("aMsg"), "Conta criada. Abra o link que enviamos para seu e-mail e depois entre.", true);
-  $("dlg").close(); toast("Bem-vindo!");
+$("selTorneio").addEventListener("change", (e) => { S.tid = e.target.value; store.set("torneio", S.tid); S.editing = null; loadTorneio(); });
+document.querySelectorAll("nav.tabs-top button").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));
+
+sb.auth.onAuthStateChange((_ev, session) => {
+  S.user = session?.user || null;
+  setTimeout(() => { S.me = S.user ? S.perfis.find((p) => p.id === S.user.id) || null : null; render(); }, 0);
 });
 
-sb.auth.onAuthStateChange(() => { setTimeout(loadMe, 0); });
-
-// ===== Tempo real: atualiza para todos quando alguém lança/edita =====
-let reloadT;
-sb.channel("tabela").on("postgres_changes", { event: "*", schema: "public", table: "jogos" }, () => { clearTimeout(reloadT); reloadT = setTimeout(loadAll, 300); })
-  .on("postgres_changes", { event: "*", schema: "public", table: "jogadores" }, () => { clearTimeout(reloadT); reloadT = setTimeout(loadAll, 300); })
+// ===== tempo real =====
+let rt;
+// não recarrega no meio de uma digitação nem com o formulário do Admin aberto
+const ocupado = () => S.editing || S.tab === "admin" || (document.activeElement?.matches?.("#view input, #view select") ?? false);
+const recarregar = () => { clearTimeout(rt); rt = setTimeout(() => (ocupado() ? recarregar() : loadBase()), 800); };
+sb.channel("fifa")
+  .on("postgres_changes", { event: "*", schema: "public", table: "jogos" }, recarregar)
+  .on("postgres_changes", { event: "*", schema: "public", table: "torneios" }, recarregar)
+  .on("postgres_changes", { event: "*", schema: "public", table: "participantes" }, recarregar)
   .subscribe();
 
-render();
-loadAll();
-loadMe();
+document.body.append(datalistTimes());
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  S.user = session?.user || null;
+  await loadBase();
+})();
 </script>
 </body>
 </html>
