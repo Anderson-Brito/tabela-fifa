@@ -145,6 +145,7 @@ tr.q td.pos { border-left-color: var(--accent); color: var(--accent); }
 .plist { display: grid; gap: 6px; }
 .prow { display: grid; grid-template-columns: auto minmax(90px, 140px) minmax(0, 1fr); gap: 10px; align-items: center; }
 .prow.two { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); }
+.prow.jrow { grid-template-columns: minmax(0, 1fr) auto auto; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .prow label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .summary { background: var(--board); color: var(--board-fg); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
@@ -235,7 +236,7 @@ const CHAVES = { 2: [[1, 2]], 4: [[1, 4], [2, 3]], 8: [[1, 8], [4, 5], [2, 7], [
 const $ = (id) => document.getElementById(id);
 const S = {
   user: null, me: null, perfis: [], jogadores: [], torneios: [],
-  tid: null, parts: [], jogos: [], tab: "tabela", filtro: "todos", incOpen: false, editing: null,
+  tid: null, parts: [], jogos: [], emTorneio: new Set(), tab: "tabela", filtro: "todos", incOpen: false, editing: null,
 };
 
 // ===== utilidades =====
@@ -291,13 +292,15 @@ const idaVolta = (t, fase) => (fase === "final" ? t.final_ida_volta : t.mata_ida
 
 // ===== dados =====
 async function loadBase() {
-  const [pf, jg, tn] = await Promise.all([
+  const [pf, jg, tn, pa] = await Promise.all([
     sb.from("perfis").select("id,nome,usuario,is_admin").order("nome"),
     sb.from("jogadores").select("*").order("nome"),
     sb.from("torneios").select("*").order("criado_em", { ascending: false }),
+    sb.from("participantes").select("jogador_id"),
   ]);
-  if (pf.error || jg.error || tn.error) return toast("Não foi possível carregar. Recarregue a página.");
+  if (pf.error || jg.error || tn.error || pa.error) return toast("Não foi possível carregar. Recarregue a página.");
   S.perfis = pf.data; S.jogadores = jg.data; S.torneios = tn.data;
+  S.emTorneio = new Set(pa.data.map((p) => p.jogador_id));
   if (!S.torneios.some((t) => t.id === S.tid)) {
     const salvo = store.get("torneio");
     S.tid = (S.torneios.find((t) => t.id === salvo) || S.torneios.find((t) => t.status === "andamento") || S.torneios[0])?.id || null;
@@ -587,8 +590,47 @@ function viewAdmin() {
   const out = [];
   const t = T();
   if (t) out.push(painelTorneio(t));
+  out.push(painelJogadores());
   out.push(novoTorneio());
   return out;
+}
+
+function painelJogadores() {
+  const m = el("p", { class: "msg", hidden: true });
+  const usuarioDe = (j) => S.perfis.find((p) => p.id === j.perfil_id);
+  const lista = el("div", { class: "plist" });
+  for (const j of S.jogadores.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))) {
+    const pf = usuarioDe(j);
+    const emTorneio = S.emTorneio.has(j.id);
+    const souEu = j.perfil_id && j.perfil_id === S.user?.id;
+    const acao = souEu ? el("span", { class: "hint" }, "você")
+      : emTorneio ? el("span", { class: "hint", title: "Exclua ou recrie o torneio sem ele antes" }, "em torneio")
+      : armed(el("button", { class: "btn small danger", type: "button" }, "Excluir"), "Excluir " + j.nome + "?", async () => {
+          const { error } = await sb.rpc("admin_excluir_jogador", { p_jogador: j.id });
+          if (error) return msg(m, errText(error));
+          toast(j.nome + " excluído"); await loadBase();
+        });
+    lista.append(el("div", { class: "prow jrow" },
+      el("strong", {}, j.nome, pf?.is_admin ? el("span", { class: "fact", style: "margin-left:6px" }, "admin") : null),
+      el("span", { class: "hint" }, pf?.usuario ? "tem login" : "sem login"),
+      acao));
+  }
+  const inp = el("input", { class: "tinput", id: "novoJog", maxlength: "40", placeholder: "Nome do novo jogador", required: true });
+  const form = el("form", { class: "row-actions" }, el("div", { style: "flex:1;min-width:180px" }, inp), el("button", { class: "btn primary", type: "submit" }, "Adicionar"));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const nomeNovo = inp.value.trim(); if (!nomeNovo) return;
+    const btn = form.querySelector("button"); btn.disabled = true;
+    const { error } = await sb.rpc("admin_criar_jogador", { p_nome: nomeNovo });
+    btn.disabled = false;
+    if (error) return msg(m, errText(error));
+    msg(m, `${nomeNovo} adicionado. Ele entra escolhendo o nome na lista, com a senha 123456.`, true);
+    inp.value = ""; await loadBase();
+  });
+  return el("section", { class: "panel" },
+    el("h2", {}, "Jogadores", el("span", { class: "sub" }, S.jogadores.length + " cadastrados · novos entram com a senha 123456")),
+    el("div", { class: "stack", style: "gap:12px" }, lista, form, m,
+      el("p", { class: "hint" }, "Para tirar alguém de um torneio já criado, exclua o torneio e crie de novo sem ele. Depois disso o jogador pode ser excluído.")));
 }
 
 function painelTorneio(t) {
