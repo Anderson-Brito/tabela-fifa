@@ -445,7 +445,7 @@ function render() {
   if (S.tab === "jogos") v.append(viewJogos(t));
   if (S.tab === "mata") v.append(viewMata(t));
 }
-function go(tab) { S.tab = tab; S.editing = null; render(); }
+function go(tab) { S.tab = tab; S.editing = null; S.editandoTorneio = false; render(); }
 
 function factsDo(t) {
   const f = [];
@@ -589,6 +589,7 @@ function viewMata(t) {
 function viewAdmin() {
   const out = [];
   const t = T();
+  if (t && S.editandoTorneio) return [novoTorneio(t)];
   if (t) out.push(painelTorneio(t));
   out.push(painelJogadores());
   out.push(novoTorneio());
@@ -654,6 +655,8 @@ function painelTorneio(t) {
     const { error } = await sb.from("torneios").update({ status: "encerrado", campeao: c }).eq("id", t.id);
     if (error) return msg(m, errText(error)); toast("Torneio encerrado"); await loadBase();
   }));
+  const comecou = S.jogos.some((g) => g.gols_mandante != null);
+  if (!comecou) acoes.append(el("button", { class: "btn", type: "button", onclick: () => { S.editandoTorneio = true; render(); } }, "Editar torneio"));
   acoes.append(armed(el("button", { class: "btn danger", type: "button" }, "Excluir torneio"), "Excluir tudo?", async () => {
     const { error } = await sb.from("torneios").delete().eq("id", t.id);
     if (error) return msg(m, errText(error)); S.tid = null; toast("Torneio excluído"); await loadBase();
@@ -668,6 +671,9 @@ function painelTorneio(t) {
   return el("section", { class: "panel" },
     el("h2", {}, "Torneio atual", el("span", { class: "sub" }, t.nome)),
     el("div", { class: "stack" }, factsDo(t), acoes, m,
+      el("p", { class: "hint" }, comecou
+        ? "O torneio travou porque já tem placar lançado. Para mudar formato ou jogadores, exclua e crie de novo."
+        : "Dá para editar formato, jogadores e times até o primeiro placar ser lançado."),
       el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Times"), lista,
         el("div", { class: "row-actions" }, el("button", { class: "btn", type: "button", onclick: async () => {
           for (const p of S.parts) {
@@ -680,13 +686,15 @@ function painelTorneio(t) {
 
 function datalistTimes() { return el("datalist", { id: "dlTimes" }, Object.values(TEAMS).flat().map((x) => el("option", { value: x }))); }
 
-function novoTorneio() {
-  const f = { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0" };
-  const radio = (name, value, titulo, desc, checked) => el("label", {}, el("input", { type: "radio", name, value, checked }), el("b", {}, titulo), el("span", {}, desc));
+function novoTorneio(ed) {
+  const f = ed
+    ? { formato: ed.formato, turnos: String(ed.turnos), classificados: String(ed.classificados ?? 4), mata: ed.mata_ida_volta ? "1" : "0", final: ed.final_ida_volta ? "1" : "0" }
+    : { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0" };
+  const radio = (name, value, titulo, desc) => el("label", {}, el("input", { type: "radio", name, value, checked: f[name] === value }), el("b", {}, titulo), el("span", {}, desc));
   const jogadores = S.jogadores.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const lista = el("div", { class: "plist" }, jogadores.map((j) => el("div", { class: "prow two" },
-    el("label", {}, el("input", { type: "checkbox", class: "pchk", value: j.id, checked: true }), j.nome),
-    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)" }))));
+    el("label", {}, el("input", { type: "checkbox", class: "pchk", value: j.id, checked: ed ? !!part(j.id) : true }), j.nome),
+    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)", value: ed ? part(j.id)?.time || "" : "" }))));
 
   const pool = el("select", { class: "tinput", style: "width:auto" }, Object.keys(TEAMS).map((k) => el("option", { value: k }, k)));
   const sortear = el("button", { class: "btn", type: "button", onclick: () => {
@@ -697,33 +705,35 @@ function novoTorneio() {
   } }, "Sortear times");
 
   const form = el("form", { class: "stack", id: "formNovo" },
-    el("div", { class: "field" }, el("label", { for: "tNome" }, "Nome do torneio"), el("input", { id: "tNome", maxlength: "60", required: true, value: "Copa FIFA " + new Date().getFullYear() })),
+    el("div", { class: "field" }, el("label", { for: "tNome" }, "Nome do torneio"), el("input", { id: "tNome", maxlength: "60", required: true, value: ed ? ed.nome : "Copa FIFA " + new Date().getFullYear() })),
     el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Jogadores e times"), lista,
       el("div", { class: "row-actions" }, pool, sortear, el("span", { class: "hint" }, "ou digite o time de cada um"))),
     el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Formato"),
       el("div", { class: "choice" },
         radio("formato", "pontos", "Pontos corridos", "Todos contra todos. Campeão é quem somar mais pontos."),
-        radio("formato", "pontos_mata", "Pontos + mata-mata", "Todos contra todos e os melhores vão para o mata-mata.", true),
+        radio("formato", "pontos_mata", "Pontos + mata-mata", "Todos contra todos e os melhores vão para o mata-mata."),
         radio("formato", "mata", "Só mata-mata", "Chaveamento sorteado direto. Precisa de 2, 4 ou 8 jogadores."))),
     el("div", { class: "stack", style: "gap:8px", id: "bLiga" }, el("span", { class: "lbl" }, "Fase de pontos"),
       el("div", { class: "choice" },
-        radio("turnos", "1", "Turno único", "Cada dupla joga 1 vez.", true),
+        radio("turnos", "1", "Turno único", "Cada dupla joga 1 vez."),
         radio("turnos", "2", "Ida e volta", "Cada dupla joga 2 vezes, uma em cada mando."))),
     el("div", { class: "stack", style: "gap:8px", id: "bClass" }, el("span", { class: "lbl" }, "Quantos vão para o mata-mata"),
       el("div", { class: "choice" },
         radio("classificados", "2", "Final direta", "Os 2 primeiros decidem o título."),
-        radio("classificados", "4", "Semifinal", "Os 4 primeiros: 1º×4º e 2º×3º.", true),
+        radio("classificados", "4", "Semifinal", "Os 4 primeiros: 1º×4º e 2º×3º."),
         radio("classificados", "8", "Quartas de final", "Os 8 primeiros: 1º×8º, 2º×7º…"))),
     el("div", { class: "stack", style: "gap:8px", id: "bMata" }, el("span", { class: "lbl" }, "Jogos do mata-mata"),
       el("div", { class: "choice" },
-        radio("mata", "0", "Jogo único", "Empatou, pênaltis. Melhor campanha tem o mando.", true),
+        radio("mata", "0", "Jogo único", "Empatou, pênaltis. Melhor campanha tem o mando."),
         radio("mata", "1", "Ida e volta", "Vale o agregado. Melhor campanha decide em casa.")),
       el("div", { class: "choice" },
-        radio("final", "0", "Final em jogo único", "Um jogo só decide o título.", true),
+        radio("final", "0", "Final em jogo único", "Um jogo só decide o título."),
         radio("final", "1", "Final ida e volta", "Dois jogos, vale o agregado."))),
     el("div", { class: "summary", id: "tResumo" }),
     el("p", { class: "msg", id: "tMsg", hidden: true }),
-    el("div", { class: "row-actions" }, el("button", { class: "btn primary", type: "submit", id: "tCriar" }, "Criar torneio e gerar jogos")));
+    el("div", { class: "row-actions" },
+      el("button", { class: "btn primary", type: "submit", id: "tCriar" }, ed ? "Salvar e gerar os jogos de novo" : "Criar torneio e gerar jogos"),
+      ed ? el("button", { class: "btn", type: "button", onclick: () => { S.editandoTorneio = false; render(); } }, "Cancelar") : null));
 
   const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
   function atualizar() {
@@ -770,8 +780,20 @@ function novoTorneio() {
     };
     const btn = form.querySelector("#tCriar"); btn.disabled = true;
     try {
-      const { data: t, error } = await sb.from("torneios").insert(novo).select().single();
-      if (error) throw error;
+      let t;
+      if (ed) {
+        const { data: placar, error: e0 } = await sb.from("jogos").select("id").eq("torneio_id", ed.id).not("gols_mandante", "is", null).limit(1);
+        if (e0) throw e0;
+        if (placar.length) throw new Error("Alguém já lançou um placar neste torneio, então ele não pode mais ser editado.");
+        const up = await sb.from("torneios").update(novo).eq("id", ed.id).select().single(); if (up.error) throw up.error;
+        const d1 = await sb.from("jogos").delete().eq("torneio_id", ed.id); if (d1.error) throw d1.error;
+        const d2 = await sb.from("participantes").delete().eq("torneio_id", ed.id); if (d2.error) throw d2.error;
+        t = up.data;
+      } else {
+        const { data, error } = await sb.from("torneios").insert(novo).select().single();
+        if (error) throw error;
+        t = data;
+      }
       const sementes = shuffle(ids);
       const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null }));
       const r1 = await sb.from("participantes").insert(parts); if (r1.error) throw r1.error;
@@ -783,13 +805,15 @@ function novoTorneio() {
       }
       const r2 = await sb.from("jogos").insert(jogos); if (r2.error) throw r2.error;
       S.tid = t.id; store.set("torneio", t.id);
-      toast("Torneio criado com " + jogos.length + " jogos");
+      toast((ed ? "Torneio atualizado: " : "Torneio criado com ") + jogos.length + " jogos");
+      S.editandoTorneio = false;
       S.tab = fmt === "mata" ? "mata" : "jogos";
       await loadBase();
     } catch (err) { msg(m, errText(err)); btn.disabled = false; }
   });
   queueMicrotask(atualizar);
-  return el("section", { class: "panel" }, el("h2", {}, "Novo torneio", el("span", { class: "sub" }, "Os jogos são gerados automaticamente")), form);
+  return el("section", { class: "panel" }, el("h2", {}, ed ? "Editar torneio" : "Novo torneio",
+    el("span", { class: "sub" }, ed ? "Ao salvar, a tabela de jogos é apagada e gerada de novo" : "Os jogos são gerados automaticamente")), form);
 }
 
 async function gerarMataDaLiga(t, m) {
@@ -877,7 +901,7 @@ document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("cli
 $("btnLogin").addEventListener("click", abrirLogin);
 $("btnPass").addEventListener("click", () => { $("pNew").value = $("pNew2").value = ""; msg($("pMsg"), ""); $("dlgPass").showModal(); });
 $("btnLogout").addEventListener("click", async () => { await sb.auth.signOut(); toast("Você saiu"); });
-$("selTorneio").addEventListener("change", (e) => { S.tid = e.target.value; store.set("torneio", S.tid); S.editing = null; loadTorneio(); });
+$("selTorneio").addEventListener("change", (e) => { S.editandoTorneio = false; S.tid = e.target.value; store.set("torneio", S.tid); S.editing = null; loadTorneio(); });
 document.querySelectorAll("nav.tabs-top button").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));
 
 sb.auth.onAuthStateChange((_ev, session) => {
