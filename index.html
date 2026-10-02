@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tabela FIFA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: placar no topo, classificação à esquerda, lançamento + jogos à direita; empilha no celular */
+:root {
+  --bg: #eef2ee;
+  --surface: #ffffff;
+  --line: #d5ddd6;
+  --fg: #142019;
+  --muted: #5c6b61;
+  --accent: #0f7a3d;       /* verde gramado */
+  --accent-fg: #ffffff;
+  --chalk: #f7faf7;
+  --board: #0d1f15;        /* placar */
+  --board-fg: #e9f5ec;
+  --win: #0f7a3d;
+  --draw: #8a6d10;
+  --loss: #b3261e;
+  --lock: #4b5563;
+  --focus: #1d6fe0;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b130e; --surface: #121d16; --line: #24342a; --fg: #e4ede6; --muted: #92a398;
+    --accent: #34b86a; --accent-fg: #06120a; --chalk: #17241b; --board: #050b07; --board-fg: #e9f5ec;
+    --win: #45c77a; --draw: #d9b13b; --loss: #f07167; --lock: #9aa4b2; --focus: #6aa8ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b130e; --surface: #121d16; --line: #24342a; --fg: #e4ede6; --muted: #92a398;
+  --accent: #34b86a; --accent-fg: #06120a; --chalk: #17241b; --board: #050b07; --board-fg: #e9f5ec;
+  --win: #45c77a; --draw: #d9b13b; --loss: #f07167; --lock: #9aa4b2; --focus: #6aa8ff;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.top {
+  background: var(--board); color: var(--board-fg);
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+}
+.top-in { max-width: 1180px; margin: 0 auto; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { margin: 0; font: 800 30px/1 var(--display); letter-spacing: .02em; text-transform: uppercase; }
+.brand small { font: 600 13px var(--display); letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+.session { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.who { font-weight: 600; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font: 700 12px var(--display); letter-spacing: .08em; text-transform: uppercase; border: 1px solid currentColor; }
+.chip.admin { color: #f5c542; }
+.chip.player { color: #8fe3ad; }
+
+main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 20px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 20px; min-width: 0; }
+
+section.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel h2 { margin: 0 0 12px; font: 700 20px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.panel h2 .sub { font: 500 13px var(--body); letter-spacing: 0; text-transform: none; color: var(--muted); }
+
+.btn { border: 1px solid var(--line); background: var(--chalk); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.danger { color: var(--loss); }
+.btn.danger.armed, .btn.armed { background: var(--loss); color: #fff; border-color: var(--loss); }
+.btn.small { padding: 4px 9px; font-size: 13px; }
+.btn.ghost-on-board { background: transparent; color: var(--board-fg); border-color: rgba(233,245,236,.35); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Classificação */
+.table-wrap { overflow-x: auto; margin: 0 -4px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 6px; text-align: center; white-space: nowrap; }
+th { font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--line); }
+td { border-bottom: 1px solid var(--line); }
+td.name, th.name { text-align: left; white-space: normal; min-width: 120px; }
+td.pts { font: 800 18px var(--display); }
+td.pos { font: 700 16px var(--display); color: var(--muted); width: 32px; }
+tr.leader td.pos { color: var(--accent); }
+.team { display: block; font-size: 12px; color: var(--muted); }
+.form-dots { display: inline-flex; gap: 3px; }
+.dot { width: 18px; height: 18px; border-radius: 4px; font: 700 11px/18px var(--display); color: #fff; text-align: center; }
+.dot.V { background: var(--win); } .dot.E { background: var(--draw); } .dot.D { background: var(--loss); }
+.legend { margin: 10px 0 0; font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.legend label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--fg); }
+
+/* Formulários */
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font: 700 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.field input, .field select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--chalk); width: 100%; min-width: 0; }
+.score-form { display: grid; grid-template-columns: minmax(0,1fr) 64px auto 64px minmax(0,1fr); gap: 8px; align-items: end; }
+.score-form .x { font: 800 22px var(--display); padding-bottom: 6px; color: var(--muted); }
+.score-form input[type=number] { text-align: center; font: 800 22px var(--display); padding: 4px; }
+@media (max-width: 480px) {
+  .score-form { grid-template-columns: minmax(0,1fr) 56px; }
+  .score-form .x { display: none; }
+}
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.msg { font-size: 13px; margin: 8px 0 0; }
+.msg.err { color: var(--loss); } .msg.ok { color: var(--win); }
+
+/* Jogos */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 6px 10px; cursor: pointer; font: 700 15px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tab .n { font-variant-numeric: tabular-nums; opacity: .7; }
+.games { display: grid; gap: 10px; }
+.game { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--chalk); }
+.game.final { border-left: 4px solid var(--lock); }
+.game.open { border-left: 4px solid var(--draw); }
+.board { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 10px; align-items: center; }
+.board .p { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.board .p.home { text-align: right; }
+.board .sc { font: 800 26px/1 var(--display); background: var(--board); color: var(--board-fg); padding: 4px 10px; border-radius: 6px; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.board .sc input { width: 46px; text-align: center; font: 800 22px var(--display); border: 0; border-radius: 4px; padding: 2px; background: var(--board-fg); color: var(--board); }
+.meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.meta .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.status { font: 700 11px var(--display); letter-spacing: .1em; text-transform: uppercase; padding: 1px 7px; border-radius: 4px; border: 1px solid currentColor; }
+.status.final { color: var(--lock); } .status.open { color: var(--draw); }
+.empty { padding: 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; }
+
+/* Jogadores */
+.players { display: flex; flex-wrap: wrap; gap: 8px; }
+.player { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px; background: var(--chalk); }
+.player .t { color: var(--muted); font-size: 12.5px; }
+.player button { border: 0; background: none; cursor: pointer; color: var(--loss); font-weight: 700; padding: 0 6px; }
+.add-player { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 8px; align-items: end; margin-top: 12px; }
+@media (max-width: 480px) { .add-player { grid-template-columns: minmax(0,1fr); } }
+
+/* Login */
+dialog { border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(420px, calc(100vw - 32px)); background: var(--surface); color: var(--fg); }
+dialog::backdrop { background: rgba(5, 12, 8, .6); }
+.dlg { padding: 20px; display: grid; gap: 12px; }
+.dlg h3 { margin: 0; font: 800 24px var(--display); text-transform: uppercase; letter-spacing: .03em; }
+.dlg .switch { font-size: 14px; color: var(--muted); }
+.dlg .switch button { background: none; border: 0; color: var(--accent); font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
+
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--board); color: var(--board-fg); padding: 10px 16px; border-radius: 8px; font-weight: 600; max-width: calc(100vw - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+@media (prefers-reduced-motion: no-preference) { .game { transition: background .2s; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><h1>Tabela FIFA</h1><small id="season">Campeonato</small></div>
+    <div class="session" id="session">
+      <span class="who" id="who" hidden></span>
+      <span class="chip" id="role" hidden></span>
+      <button class="btn ghost-on-board small" id="btnLogin" type="button">Entrar</button>
+      <button class="btn ghost-on-board small" id="btnLogout" type="button" hidden>Sair</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section class="panel" aria-labelledby="hTab">
+      <h2 id="hTab">Classificação <span class="sub" id="tabSub">Conta só jogos finalizados</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th class="name">Jogador</th><th title="Pontos">P</th><th title="Jogos">J</th>
+              <th title="Vitórias">V</th><th title="Empates">E</th><th title="Derrotas">D</th>
+              <th title="Gols pró">GP</th><th title="Gols contra">GC</th><th title="Saldo de gols">SG</th><th>Últimos</th>
+            </tr>
+          </thead>
+          <tbody id="standings"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span>Vitória 3 pts · Empate 1 pt · Desempate: V, SG, GP</span>
+        <label><input type="checkbox" id="incOpen"> Incluir jogos em aberto (prévia)</label>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="hPl">
+      <h2 id="hPl">Jogadores <span class="sub" id="plCount"></span></h2>
+      <div class="players" id="players"></div>
+      <form class="add-player" id="formPlayer" hidden>
+        <div class="field"><label for="plName">Nome</label><input id="plName" maxlength="40" required placeholder="Ex.: Anderson"></div>
+        <div class="field"><label for="plTeam">Time (opcional)</label><input id="plTeam" maxlength="40" placeholder="Ex.: Real Madrid"></div>
+        <button class="btn" type="submit">Adicionar</button>
+      </form>
+      <p class="msg" id="plMsg" hidden></p>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel" aria-labelledby="hNew">
+      <h2 id="hNew">Lançar resultado</h2>
+      <div id="newLocked">
+        <p class="hint" style="margin-top:0">Entre com sua conta para lançar placares. Qualquer pessoa pode ver a tabela.</p>
+        <div class="row-actions"><button class="btn primary" type="button" id="btnLogin2">Entrar ou criar conta</button></div>
+      </div>
+      <form id="formGame" hidden>
+        <div class="score-form">
+          <div class="field"><label for="gHome">Mandante</label><select id="gHome" required></select></div>
+          <div class="field"><label for="gHomeG">Gols</label><input id="gHomeG" type="number" min="0" max="99" required value="0" inputmode="numeric"></div>
+          <span class="x">×</span>
+          <div class="field"><label for="gAwayG">Gols</label><input id="gAwayG" type="number" min="0" max="99" required value="0" inputmode="numeric"></div>
+          <div class="field"><label for="gAway">Visitante</label><select id="gAway" required></select></div>
+        </div>
+        <div class="row-actions">
+          <button class="btn" type="submit" data-final="0">Salvar em aberto</button>
+          <button class="btn primary" type="submit" data-final="1">Salvar e finalizar</button>
+        </div>
+        <p class="hint">Jogo em aberto pode ser corrigido por qualquer participante. Depois de finalizado, só o administrador altera.</p>
+        <p class="msg" id="gMsg" hidden></p>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="hGames">
+      <h2 id="hGames">Jogos</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tabOpen" aria-selected="true" type="button">Em aberto <span class="n" id="nOpen">0</span></button>
+        <button class="tab" role="tab" id="tabFinal" aria-selected="false" type="button">Finalizados <span class="n" id="nFinal">0</span></button>
+      </div>
+      <div class="games" id="games"></div>
+    </section>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form class="dlg" id="formAuth" method="dialog">
+    <h3 id="authTitle">Entrar</h3>
+    <div class="field" id="fName" hidden><label for="aName">Seu nome</label><input id="aName" maxlength="40" autocomplete="name"></div>
+    <div class="field"><label for="aEmail">E-mail</label><input id="aEmail" type="email" required autocomplete="email"></div>
+    <div class="field"><label for="aPass">Senha</label><input id="aPass" type="password" required minlength="6" autocomplete="current-password"></div>
+    <p class="msg" id="aMsg" hidden></p>
+    <div class="row-actions" style="margin-top:0">
+      <button class="btn primary" type="submit" id="aSubmit">Entrar</button>
+      <button class="btn" type="button" id="aCancel">Cancelar</button>
+    </div>
+    <p class="switch" id="aSwitch">Ainda não tem conta? <button type="button" id="aToggle">Criar conta</button></p>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ===== Configuração do Supabase (chave pública; a segurança está nas regras do banco) =====
+const SUPABASE_URL = "https://tnzxpqbrxycryzsrecjq.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuenhwcWJyeHljcnl6c3JlY2pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NzM3MTUsImV4cCI6MjEwNjU0OTcxNX0.BcrGPqb45E3p_ISqICebZiaozbJOEi0S1bDocKbGGus";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+const state = { user: null, me: null, players: [], games: [], profiles: {}, tab: "open", editing: null };
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v === true) n.setAttribute(k, "");
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) n.append(c);
+  return n;
+}
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2600);
+}
+function showMsg(node, text, ok) {
+  node.textContent = text; node.className = "msg " + (ok ? "ok" : "err"); node.hidden = !text;
+}
+function errText(e) {
+  const m = (e && (e.message || e.error_description)) || String(e);
+  if (/finalizado/i.test(m)) return "Jogo finalizado: só o administrador pode alterar.";
+  if (/Invalid login/i.test(m)) return "E-mail ou senha incorretos.";
+  if (/already registered/i.test(m)) return "Esse e-mail já tem conta. Use Entrar.";
+  if (/jogadores_nome_unico|duplicate key/i.test(m)) return "Já existe um jogador com esse nome.";
+  if (/foreign key/i.test(m)) return "Esse jogador tem jogos lançados. Remova os jogos antes.";
+  if (/Email not confirmed/i.test(m)) return "Confirme seu e-mail pelo link enviado antes de entrar.";
+  if (/row-level security|permission denied/i.test(m)) return "Você não tem permissão para essa ação.";
+  return m;
+}
+// Botão de confirmação em dois cliques (sem confirm() do navegador)
+function armed(btn, label, action) {
+  btn.addEventListener("click", async () => {
+    if (!btn.classList.contains("armed")) {
+      const orig = btn.textContent;
+      btn.classList.add("armed"); btn.textContent = label;
+      btn._t = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = orig; }, 3500);
+      return;
+    }
+    clearTimeout(btn._t); btn.disabled = true;
+    try { await action(); } finally { btn.disabled = false; }
+  });
+  return btn;
+}
+const isAdmin = () => !!state.me?.is_admin;
+const logged = () => !!state.user;
+const playerById = (id) => state.players.find((p) => p.id === id);
+const pname = (id) => playerById(id)?.nome || "—";
+const uname = (id) => (id && state.profiles[id]?.nome) || "alguém";
+const fmtDate = (s) => new Date(s).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+// ===== Dados =====
+async function loadAll() {
+  const [pl, gm] = await Promise.all([
+    sb.from("jogadores").select("*").order("nome"),
+    sb.from("jogos").select("*").order("criado_em", { ascending: false }),
+  ]);
+  if (pl.error || gm.error) { toast("Não foi possível carregar os dados. Recarregue a página."); return; }
+  state.players = pl.data; state.games = gm.data;
+  const ids = [...new Set(state.games.flatMap((g) => [g.criado_por, g.atualizado_por, g.finalizado_por]).filter(Boolean))];
+  if (ids.length) {
+    const { data } = await sb.from("perfis").select("id,nome").in("id", ids);
+    for (const p of data || []) state.profiles[p.id] = p;
+  }
+  render();
+}
+async function loadMe() {
+  const { data: { session } } = await sb.auth.getSession();
+  state.user = session?.user || null; state.me = null;
+  if (state.user) {
+    const { data } = await sb.from("perfis").select("*").eq("id", state.user.id).maybeSingle();
+    state.me = data;
+    if (data) state.profiles[data.id] = data;
+  }
+  renderSession(); render();
+}
+
+// ===== Render =====
+function renderSession() {
+  $("btnLogin").hidden = logged(); $("btnLogout").hidden = !logged();
+  $("who").hidden = !logged(); $("role").hidden = !logged();
+  if (logged()) {
+    $("who").textContent = state.me?.nome || state.user.email;
+    $("role").textContent = isAdmin() ? "Admin" : "Participante";
+    $("role").className = "chip " + (isAdmin() ? "admin" : "player");
+  }
+  $("newLocked").hidden = logged(); $("formGame").hidden = !logged();
+  $("formPlayer").hidden = !logged();
+}
+
+function computeStandings(includeOpen) {
+  const rows = new Map(state.players.map((p) => [p.id, { p, P: 0, J: 0, V: 0, E: 0, D: 0, GP: 0, GC: 0, last: [] }]));
+  const games = state.games.filter((g) => g.finalizado || includeOpen)
+    .slice().sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em));
+  for (const g of games) {
+    const h = rows.get(g.mandante), a = rows.get(g.visitante);
+    if (!h || !a) continue;
+    const res = (r, gf, ga) => {
+      r.J++; r.GP += gf; r.GC += ga;
+      if (gf > ga) { r.V++; r.P += 3; r.last.push("V"); }
+      else if (gf === ga) { r.E++; r.P += 1; r.last.push("E"); }
+      else { r.D++; r.last.push("D"); }
+    };
+    res(h, g.gols_mandante, g.gols_visitante);
+    res(a, g.gols_visitante, g.gols_mandante);
+  }
+  return [...rows.values()].sort((x, y) =>
+    y.P - x.P || y.V - x.V || (y.GP - y.GC) - (x.GP - x.GC) || y.GP - x.GP || x.p.nome.localeCompare(y.p.nome, "pt-BR"));
+}
+
+function renderStandings() {
+  const inc = $("incOpen").checked;
+  $("tabSub").textContent = inc ? "Prévia: inclui jogos em aberto" : "Conta só jogos finalizados";
+  const body = $("standings"); body.replaceChildren();
+  const rows = computeStandings(inc);
+  if (!rows.length) {
+    body.append(el("tr", {}, el("td", { colspan: "11", class: "name" },
+      el("div", { class: "empty" }, "Nenhum jogador ainda. Cadastre os jogadores para montar a tabela."))));
+    return;
+  }
+  rows.forEach((r, i) => {
+    const sg = r.GP - r.GC;
+    body.append(el("tr", { class: i === 0 && r.J ? "leader" : "" },
+      el("td", { class: "pos" }, String(i + 1)),
+      el("td", { class: "name" }, r.p.nome, r.p.time ? el("span", { class: "team" }, r.p.time) : null),
+      el("td", { class: "pts" }, String(r.P)),
+      el("td", {}, String(r.J)), el("td", {}, String(r.V)), el("td", {}, String(r.E)), el("td", {}, String(r.D)),
+      el("td", {}, String(r.GP)), el("td", {}, String(r.GC)),
+      el("td", {}, (sg > 0 ? "+" : "") + sg),
+      el("td", {}, el("span", { class: "form-dots" }, r.last.slice(-5).map((x) => el("span", { class: "dot " + x, title: { V: "Vitória", E: "Empate", D: "Derrota" }[x] }, x))))
+    ));
+  });
+}
+
+function renderPlayers() {
+  const box = $("players"); box.replaceChildren();
+  $("plCount").textContent = state.players.length ? state.players.length + " cadastrados" : "";
+  if (!state.players.length) { box.append(el("div", { class: "empty", style: "width:100%" }, logged() ? "Adicione o primeiro jogador abaixo." : "Nenhum jogador cadastrado.")); }
+  for (const p of state.players) {
+    const chip = el("span", { class: "player" }, p.nome, p.time ? el("span", { class: "t" }, p.time) : null);
+    if (isAdmin()) chip.append(armed(el("button", { type: "button", title: "Remover jogador", "aria-label": "Remover " + p.nome }, "×"), "Remover?", async () => {
+      const { error } = await sb.from("jogadores").delete().eq("id", p.id);
+      if (error) toast(errText(error)); else { toast("Jogador removido"); await loadAll(); }
+    }));
+    box.append(chip);
+  }
+  // selects do lançamento
+  for (const id of ["gHome", "gAway"]) {
+    const s = $(id), cur = s.value; s.replaceChildren(el("option", { value: "" }, "Escolha…"));
+    for (const p of state.players) s.append(el("option", { value: p.id }, p.nome + (p.time ? " (" + p.time + ")" : "")));
+    s.value = state.players.some((p) => p.id === cur) ? cur : "";
+  }
+}
+
+function canEditGame(g) { return logged() && (!g.finalizado || isAdmin()); }
+function canDeleteGame(g) { return logged() && (isAdmin() || (!g.finalizado && g.criado_por === state.user.id)); }
+
+function gameCard(g) {
+  const editing = state.editing === g.id;
+  const score = editing
+    ? el("span", { class: "sc" },
+        el("input", { type: "number", min: "0", max: "99", value: g.gols_mandante, id: "eh-" + g.id, "aria-label": "Gols " + pname(g.mandante) }),
+        " × ",
+        el("input", { type: "number", min: "0", max: "99", value: g.gols_visitante, id: "ea-" + g.id, "aria-label": "Gols " + pname(g.visitante) }))
+    : el("span", { class: "sc" }, g.gols_mandante + " × " + g.gols_visitante);
+
+  const info = g.finalizado
+    ? `Finalizado por ${uname(g.finalizado_por)} em ${fmtDate(g.finalizado_em)}`
+    : `Lançado por ${uname(g.criado_por)} em ${fmtDate(g.criado_em)}` + (g.atualizado_por && g.atualizado_por !== g.criado_por ? ` · corrigido por ${uname(g.atualizado_por)}` : "");
+
+  const acts = el("span", { class: "acts" });
+  if (editing) {
+    acts.append(
+      el("button", { class: "btn small primary", type: "button", onclick: () => saveEdit(g) }, "Salvar"),
+      el("button", { class: "btn small", type: "button", onclick: () => { state.editing = null; renderGames(); } }, "Cancelar"));
+  } else {
+    if (canEditGame(g)) acts.append(el("button", { class: "btn small", type: "button", onclick: () => { state.editing = g.id; renderGames(); } }, "Editar"));
+    if (logged() && !g.finalizado) acts.append(armed(el("button", { class: "btn small primary", type: "button" }, "Finalizar"), "Confirmar?", () => setFinal(g, true)));
+    if (isAdmin() && g.finalizado) acts.append(armed(el("button", { class: "btn small", type: "button" }, "Reabrir"), "Confirmar?", () => setFinal(g, false)));
+    if (canDeleteGame(g)) acts.append(armed(el("button", { class: "btn small danger", type: "button" }, "Excluir"), "Excluir?", () => delGame(g)));
+  }
+  return el("article", { class: "game " + (g.finalizado ? "final" : "open") },
+    el("div", { class: "board" },
+      el("span", { class: "p home" }, pname(g.mandante)), score, el("span", { class: "p" }, pname(g.visitante))),
+    el("div", { class: "meta" },
+      el("span", {}, el("span", { class: "status " + (g.finalizado ? "final" : "open") }, g.finalizado ? "🔒 Finalizado" : "Em aberto"), " ", info),
+      acts));
+}
+
+function renderGames() {
+  const open = state.games.filter((g) => !g.finalizado), fin = state.games.filter((g) => g.finalizado);
+  $("nOpen").textContent = open.length; $("nFinal").textContent = fin.length;
+  $("tabOpen").setAttribute("aria-selected", state.tab === "open"); $("tabFinal").setAttribute("aria-selected", state.tab === "final");
+  const list = state.tab === "open" ? open : fin;
+  const box = $("games"); box.replaceChildren();
+  if (!list.length) box.append(el("div", { class: "empty" }, state.tab === "open" ? "Nenhum jogo em aberto. Lance um resultado acima." : "Nenhum jogo finalizado ainda."));
+  for (const g of list) box.append(gameCard(g));
+}
+
+function render() { renderStandings(); renderPlayers(); renderGames(); }
+
+// ===== Ações =====
+async function saveEdit(g) {
+  const h = parseInt($("eh-" + g.id).value, 10), a = parseInt($("ea-" + g.id).value, 10);
+  if (![h, a].every((n) => n >= 0 && n <= 99)) return toast("Placar inválido (0 a 99).");
+  const { data, error } = await sb.from("jogos").update({ gols_mandante: h, gols_visitante: a }).eq("id", g.id).select();
+  if (error) return toast(errText(error));
+  if (!data?.length) { state.editing = null; await loadAll(); return toast("Jogo finalizado: só o administrador pode alterar."); }
+  state.editing = null; toast("Placar atualizado"); await loadAll();
+}
+async function setFinal(g, v) {
+  const { data, error } = await sb.from("jogos").update({ finalizado: v }).eq("id", g.id).select();
+  if (error) return toast(errText(error));
+  if (!data?.length) return toast("Você não tem permissão para essa ação.");
+  toast(v ? "Jogo finalizado e travado" : "Jogo reaberto"); await loadAll();
+}
+async function delGame(g) {
+  const { data, error } = await sb.from("jogos").delete().eq("id", g.id).select();
+  if (error) return toast(errText(error));
+  if (!data?.length) return toast("Você não tem permissão para excluir esse jogo.");
+  toast("Jogo excluído"); await loadAll();
+}
+
+$("formGame").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fin = e.submitter?.dataset.final === "1";
+  const row = { mandante: $("gHome").value, visitante: $("gAway").value,
+    gols_mandante: parseInt($("gHomeG").value, 10), gols_visitante: parseInt($("gAwayG").value, 10), finalizado: fin };
+  if (!row.mandante || !row.visitante) return showMsg($("gMsg"), "Escolha os dois jogadores.");
+  if (row.mandante === row.visitante) return showMsg($("gMsg"), "Mandante e visitante precisam ser diferentes.");
+  if (![row.gols_mandante, row.gols_visitante].every((n) => n >= 0 && n <= 99)) return showMsg($("gMsg"), "Placar inválido (0 a 99).");
+  const btns = $("formGame").querySelectorAll("button"); btns.forEach((b) => (b.disabled = true));
+  const { error } = await sb.from("jogos").insert(row);
+  btns.forEach((b) => (b.disabled = false));
+  if (error) return showMsg($("gMsg"), errText(error));
+  showMsg($("gMsg"), fin ? "Resultado salvo e finalizado." : "Resultado salvo em aberto.", true);
+  $("gHomeG").value = 0; $("gAwayG").value = 0;
+  state.tab = fin ? "final" : "open"; await loadAll();
+});
+
+$("formPlayer").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nome = $("plName").value.trim(), time = $("plTeam").value.trim() || null;
+  if (!nome) return;
+  const { error } = await sb.from("jogadores").insert({ nome, time });
+  if (error) return showMsg($("plMsg"), errText(error));
+  $("plName").value = ""; $("plTeam").value = ""; showMsg($("plMsg"), "");
+  toast(nome + " adicionado"); await loadAll();
+});
+
+$("incOpen").addEventListener("change", renderStandings);
+$("tabOpen").addEventListener("click", () => { state.tab = "open"; renderGames(); });
+$("tabFinal").addEventListener("click", () => { state.tab = "final"; renderGames(); });
+
+// ===== Login =====
+let signup = false;
+function setMode(s) {
+  signup = s;
+  $("authTitle").textContent = s ? "Criar conta" : "Entrar";
+  $("aSubmit").textContent = s ? "Criar conta" : "Entrar";
+  $("fName").hidden = !s; $("aName").required = s;
+  $("aPass").autocomplete = s ? "new-password" : "current-password";
+  $("aSwitch").firstChild.textContent = s ? "Já tem conta? " : "Ainda não tem conta? ";
+  $("aToggle").textContent = s ? "Entrar" : "Criar conta";
+  showMsg($("aMsg"), "");
+}
+function openAuth() { setMode(false); $("dlg").showModal(); $("aEmail").focus(); }
+$("btnLogin").addEventListener("click", openAuth);
+$("btnLogin2").addEventListener("click", openAuth);
+$("aCancel").addEventListener("click", () => $("dlg").close());
+$("aToggle").addEventListener("click", () => setMode(!signup));
+$("btnLogout").addEventListener("click", async () => { await sb.auth.signOut(); toast("Você saiu"); });
+$("formAuth").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("aEmail").value.trim(), password = $("aPass").value;
+  $("aSubmit").disabled = true;
+  let res;
+  if (signup) {
+    res = await sb.auth.signUp({ email, password, options: { data: { nome: $("aName").value.trim() }, emailRedirectTo: location.origin + location.pathname } });
+  } else {
+    res = await sb.auth.signInWithPassword({ email, password });
+  }
+  $("aSubmit").disabled = false;
+  if (res.error) return showMsg($("aMsg"), errText(res.error));
+  if (signup && !res.data.session) return showMsg($("aMsg"), "Conta criada. Abra o link que enviamos para seu e-mail e depois entre.", true);
+  $("dlg").close(); toast("Bem-vindo!");
+});
+
+sb.auth.onAuthStateChange(() => { setTimeout(loadMe, 0); });
+
+// ===== Tempo real: atualiza para todos quando alguém lança/edita =====
+let reloadT;
+sb.channel("tabela").on("postgres_changes", { event: "*", schema: "public", table: "jogos" }, () => { clearTimeout(reloadT); reloadT = setTimeout(loadAll, 300); })
+  .on("postgres_changes", { event: "*", schema: "public", table: "jogadores" }, () => { clearTimeout(reloadT); reloadT = setTimeout(loadAll, 300); })
+  .subscribe();
+
+render();
+loadAll();
+loadMe();
+</script>
+</body>
+</html>
