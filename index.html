@@ -292,6 +292,12 @@ const idaVolta = (t, fase) => (fase === "final" ? t.final_ida_volta : t.mata_ida
 
 // ===== dados =====
 async function loadBase() {
+  if (!S.user) {
+    // sem login: só a lista de nomes para a tela de entrada
+    const { data } = await sb.from("perfis").select("id,nome,usuario").order("nome");
+    S.perfis = data || []; S.me = null; S.jogadores = []; S.torneios = []; S.parts = []; S.jogos = []; S.emTorneio = new Set();
+    return render();
+  }
   const [pf, jg, tn, pa] = await Promise.all([
     sb.from("perfis").select("id,nome,usuario,is_admin").order("nome"),
     sb.from("jogadores").select("*").order("nome"),
@@ -433,6 +439,14 @@ function renderHeader() {
 function render() {
   renderHeader();
   const v = $("view"); v.replaceChildren();
+  document.querySelector("nav.tabs-top").hidden = !logged();
+  $("selTorneio").hidden = !logged() || !S.torneios.length;
+  if (!logged()) {
+    v.append(el("section", { class: "panel" }, el("h2", {}, "Entre para ver o campeonato"),
+      el("p", { class: "hint" }, "A tabela, os jogos e o mata-mata ficam visíveis só para quem está no grupo. Escolha seu nome e digite a senha."),
+      el("div", { class: "row-actions", style: "margin-top:12px" }, el("button", { class: "btn primary", type: "button", onclick: abrirLogin }, "Entrar"))));
+    return;
+  }
   const t = T();
   if (S.tab === "admin") return v.append(...viewAdmin());
   if (!t) {
@@ -904,9 +918,11 @@ $("btnLogout").addEventListener("click", async () => { await sb.auth.signOut(); 
 $("selTorneio").addEventListener("change", (e) => { S.editandoTorneio = false; S.tid = e.target.value; store.set("torneio", S.tid); S.editing = null; loadTorneio(); });
 document.querySelectorAll("nav.tabs-top button").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));
 
-sb.auth.onAuthStateChange((_ev, session) => {
+sb.auth.onAuthStateChange((ev, session) => {
+  const antes = S.user?.id;
   S.user = session?.user || null;
-  setTimeout(() => { S.me = S.user ? S.perfis.find((p) => p.id === S.user.id) || null : null; render(); }, 0);
+  // entrou, saiu ou trocou de pessoa: recarrega tudo com as permissões novas
+  if (antes !== S.user?.id && ev !== "INITIAL_SESSION") setTimeout(loadBase, 0);
 });
 
 // ===== tempo real =====
