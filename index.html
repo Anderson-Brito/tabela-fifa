@@ -147,6 +147,9 @@ tr.q td.pos { border-left-color: var(--accent); color: var(--accent); }
 .prow.two { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); }
 .prow.three { grid-template-columns: minmax(110px, 160px) auto minmax(0, 1fr); }
 .prow.three .pgrp { width: auto; }
+.grpbox { display: flex; gap: 8px; align-items: center; }
+.grpbox label { font-weight: 500; font-size: 13px; white-space: nowrap; gap: 4px; }
+.cc { color: var(--gold); margin-right: 4px; }
 .prow.jrow { grid-template-columns: minmax(0, 1fr) auto auto; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .prow label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -512,7 +515,7 @@ function viewTabela(t) {
       const sg = r.GP - r.GC;
       body.append(el("tr", { class: i < q ? "q" : "" },
         el("td", { class: "pos" }, String(i + 1)),
-        el("td", { class: "name" }, nome(r.id), time(r.id) ? el("span", { class: "team" }, time(r.id)) : null),
+        el("td", { class: "name" }, grupos && part(r.id)?.cabeca ? el("span", { class: "cc", title: "Cabeça de chave" }, "★") : null, nome(r.id), time(r.id) ? el("span", { class: "team" }, time(r.id)) : null),
         el("td", { class: "pts" }, String(r.P)), el("td", {}, String(r.J)), el("td", {}, String(r.V)), el("td", {}, String(r.E)), el("td", {}, String(r.D)),
         el("td", {}, String(r.GP)), el("td", {}, String(r.GC)), el("td", {}, (sg > 0 ? "+" : "") + sg),
         el("td", {}, el("span", { class: "form-dots" }, r.last.slice(-5).map((x) => el("span", { class: "dot " + x, title: { V: "Vitória", E: "Empate", D: "Derrota" }[x] }, x))))));
@@ -737,8 +740,10 @@ function novoTorneio(ed) {
   const jogadores = S.jogadores.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const linha = (j, marcado, grupo) => el("div", { class: "prow pl two" },
     el("label", {}, el("input", { type: "checkbox", class: "pchk", value: j.id, checked: marcado }), j.nome),
-    el("select", { class: "tinput pgrp", "data-id": j.id, "aria-label": "Grupo de " + j.nome },
-      el("option", { value: "" }, "Grupo"), [...LETRAS].map((l, i) => el("option", { value: String(i + 1), selected: grupo === i + 1 }, "Grupo " + l))),
+    el("span", { class: "grpbox" },
+      el("select", { class: "tinput pgrp", "data-id": j.id, "aria-label": "Grupo de " + j.nome },
+        el("option", { value: "" }, "Grupo"), [...LETRAS].map((l, i) => el("option", { value: String(i + 1), selected: grupo === i + 1 }, "Grupo " + l))),
+      el("label", { title: "Cabeça de chave: fica num grupo sem outro cabeça" }, el("input", { type: "checkbox", class: "pcab", "data-id": j.id, checked: ed ? !!part(j.id)?.cabeca : false }), "Cabeça de chave")),
     el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)", value: ed ? part(j.id)?.time || "" : "" }));
   const lista = el("div", { class: "plist" }, jogadores.map((j) => linha(j, ed ? !!part(j.id) : true, ed ? part(j.id)?.grupo : null)));
 
@@ -791,7 +796,7 @@ function novoTorneio(ed) {
         radio("porGrupo", "2", "2 por grupo", "1º e 2º avançam. 1º de um grupo pega o 2º do outro."),
         radio("porGrupo", "4", "4 por grupo", "Os 4 primeiros avançam. 1º×4º e 2º×3º de grupos cruzados.")),
       el("div", { class: "row-actions" }, el("button", { class: "btn", type: "button", id: "btnSortGrp" }, "Sortear grupos"),
-        el("span", { class: "hint" }, "ou escolha o grupo de cada participante na lista acima"))),
+        el("span", { class: "hint" }, "Marque os cabeças de chave na lista: o sorteio coloca no máximo um por grupo. Também dá para escolher o grupo de cada um na mão."))),
     el("div", { class: "stack", style: "gap:8px", id: "bLiga" }, el("span", { class: "lbl", id: "lblLiga" }, "Fase de pontos"),
       el("div", { class: "choice" },
         radio("turnos", "1", "Turno único", "Cada dupla joga 1 vez."),
@@ -819,9 +824,19 @@ function novoTorneio(ed) {
   const grpSel = (id) => form.querySelector(`.pgrp[data-id="${id}"]`);
   // escolhe a opção válida mais próxima quando a marcada fica desabilitada
   const ajustar = (name) => { const rs = [...form.querySelectorAll(`input[name="${name}"]`)]; if (rs.some((r) => r.checked && !r.disabled)) return; const ok = rs.filter((r) => !r.disabled).pop() || rs[0]; ok.checked = true; };
+  const cabeca = (id) => form.querySelector(`.pcab[data-id="${id}"]`).checked;
+  // cabeças de chave primeiro, um em cada grupo; os demais vão para o grupo com menos gente (empate sorteado)
   function sortearGrupos() {
     const G = +val("grupos");
-    shuffle(marcados()).forEach((id, i) => { grpSel(id).value = String((i % G) + 1); });
+    const ids = marcados(), cabs = shuffle(ids.filter(cabeca)), resto = shuffle(ids.filter((id) => !cabeca(id)));
+    const cont = Array(G).fill(0);
+    const ordem = shuffle(Array.from({ length: G }, (_, g) => g));
+    cabs.forEach((id, i) => { const g = ordem[i % G]; grpSel(id).value = String(g + 1); cont[g]++; });
+    for (const id of resto) {
+      const min = Math.min(...cont);
+      const g = shuffle(ordem.filter((x) => cont[x] === min))[0];
+      grpSel(id).value = String(g + 1); cont[g]++;
+    }
     atualizar();
   }
   form.querySelector("#btnSortGrp").addEventListener("click", sortearGrupos);
@@ -836,7 +851,11 @@ function novoTorneio(ed) {
     form.querySelector("#bGrupos").hidden = !grupos;
     form.querySelector("#bMata").hidden = fmt === "pontos";
     form.querySelectorAll(".prow.pl").forEach((r) => { r.className = "prow pl " + (grupos ? "three" : "two"); });
-    form.querySelectorAll(".pgrp").forEach((s) => { s.hidden = !grupos; s.disabled = !s.closest(".prow").querySelector(".pchk").checked; });
+    form.querySelectorAll(".grpbox").forEach((b) => {
+      b.hidden = !grupos;
+      const fora = !b.closest(".prow").querySelector(".pchk").checked;
+      b.querySelectorAll("select, input").forEach((x) => { x.disabled = fora; });
+    });
     form.querySelectorAll('input[name="classificados"]').forEach((r) => { r.disabled = +r.value > n; if (r.disabled && r.checked) { const ok = [...form.querySelectorAll('input[name="classificados"]')].filter((x) => +x.value <= n).pop(); if (ok) ok.checked = true; } });
     let G = 0, tam = [];
     if (grupos) {
@@ -846,7 +865,7 @@ function novoTorneio(ed) {
       form.querySelectorAll(".pgrp option").forEach((o) => { o.hidden = o.disabled = +o.value > G; });
       // mudou o nº de grupos ou alguém marcado ainda sem grupo: distribui
       const semGrupo = ids.filter((id) => { const v = +grpSel(id).value; return !v || v > G; });
-      if (val("grupos") !== gruposAntes || (semGrupo.length === n && n)) { gruposAntes = val("grupos"); return sortearGrupos(); }
+      if (val("grupos") !== gruposAntes || (semGrupo.length === n && n) || ev?.target?.classList?.contains("pcab")) { gruposAntes = val("grupos"); return sortearGrupos(); }
       for (const id of semGrupo) {
         const cont = Array.from({ length: G }, (_, g) => ids.filter((x) => +grpSel(x).value === g + 1).length);
         grpSel(id).value = String(cont.indexOf(Math.min(...cont)) + 1);
@@ -862,7 +881,12 @@ function novoTorneio(ed) {
     if (grupos) {
       const q = +val("porGrupo");
       const ruim = tam.findIndex((s) => s < q + 1);
+      const cabs = ids.filter(cabeca);
+      const cabPorGrupo = Array.from({ length: G }, (_, g) => cabs.filter((x) => +grpSel(x).value === g + 1).length);
+      const dup = cabPorGrupo.findIndex((c) => c > 1);
       if (n < 4) erro = "Grupos precisam de pelo menos 4 jogadores.";
+      else if (cabs.length > G) erro = `São ${cabs.length} cabeças de chave para ${G} grupos. Marque no máximo ${G}.`;
+      else if (dup >= 0) erro = `O Grupo ${letra(dup + 1)} ficou com ${cabPorGrupo[dup]} cabeças de chave. Troque o grupo de um deles ou sorteie de novo.`;
       else if (ruim >= 0) erro = `O Grupo ${letra(ruim + 1)} tem ${tam[ruim]} jogador(es). Cada grupo precisa de pelo menos ${q + 1} para classificar ${q}.`;
       ligaJogos = tam.reduce((s, x) => s + (x * (x - 1) / 2) * turnos, 0);
       const rods = Math.max(...tam.map((x) => (x % 2 ? x : x - 1))) * turnos;
@@ -919,7 +943,7 @@ function novoTorneio(ed) {
         t = data;
       }
       const sementes = shuffle(ids);
-      const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null, grupo: grupoDoForm(id) }));
+      const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null, grupo: grupoDoForm(id), cabeca: !!G && cabeca(id) }));
       const r1 = await sb.from("participantes").insert(parts); if (r1.error) throw r1.error;
       let jogos = [];
       if (fmt === "grupos") {
