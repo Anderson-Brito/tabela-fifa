@@ -145,6 +145,8 @@ tr.q td.pos { border-left-color: var(--accent); color: var(--accent); }
 .plist { display: grid; gap: 6px; }
 .prow { display: grid; grid-template-columns: auto minmax(90px, 140px) minmax(0, 1fr); gap: 10px; align-items: center; }
 .prow.two { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); }
+.prow.three { grid-template-columns: minmax(110px, 160px) auto minmax(0, 1fr); }
+.prow.three .pgrp { width: auto; }
 .prow.jrow { grid-template-columns: minmax(0, 1fr) auto auto; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .prow label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -289,6 +291,23 @@ const perfilNome = (uid) => S.perfis.find((p) => p.id === uid)?.nome || "alguém
 const temLiga = (t) => t && t.formato !== "mata";
 const temMata = (t) => t && t.formato !== "pontos";
 const idaVolta = (t, fase) => (fase === "final" ? t.final_ida_volta : t.mata_ida_volta);
+const LETRAS = "ABCDEFGH";
+const letra = (g) => LETRAS[g - 1] || "?";
+const grupoDe = (id) => part(id)?.grupo || null;
+
+// Chaveamento da fase de grupos: lista de confrontos [vagaA, vagaB] na ordem das chaves.
+// vaga = (grupo-1)*q + posição. Times do mesmo grupo ficam em lados opostos sempre que possível.
+function chaveamentoGrupos(G, q) {
+  const v = (g, p) => g * q + p; // g 0-based
+  if (q === 1) return Array.from({ length: G / 2 }, (_, i) => [v(2 * i, 1), v(2 * i + 1, 1)]);
+  const pares = Array.from({ length: G / 2 }, (_, i) => [2 * i, 2 * i + 1]);
+  if (q === 2) return [...pares.map(([x, y]) => [v(x, 1), v(y, 2)]), ...pares.map(([x, y]) => [v(y, 1), v(x, 2)])];
+  // q === 4
+  if (G === 2) return [[v(0, 1), v(1, 4)], [v(1, 2), v(0, 3)], [v(1, 1), v(0, 4)], [v(0, 2), v(1, 3)]];
+  const [A, B, C, D] = [0, 1, 2, 3];
+  return [[v(A, 1), v(B, 4)], [v(D, 2), v(C, 3)], [v(C, 1), v(D, 4)], [v(B, 2), v(A, 3)],
+    [v(B, 1), v(A, 4)], [v(C, 2), v(D, 3)], [v(D, 1), v(C, 4)], [v(A, 2), v(B, 3)]];
+}
 
 // ===== dados =====
 async function loadBase() {
@@ -326,8 +345,8 @@ async function loadTorneio() {
 }
 
 // ===== regras do campeonato =====
-function standings(includeOpen) {
-  const rows = new Map(S.parts.map((p) => [p.jogador_id, { id: p.jogador_id, P: 0, J: 0, V: 0, E: 0, D: 0, GP: 0, GC: 0, last: [] }]));
+function standings(includeOpen, grupo) {
+  const rows = new Map(S.parts.filter((p) => !grupo || p.grupo === grupo).map((p) => [p.jogador_id, { id: p.jogador_id, P: 0, J: 0, V: 0, E: 0, D: 0, GP: 0, GC: 0, last: [] }]));
   const gs = S.jogos.filter((g) => g.fase === "liga" && g.gols_mandante != null && (g.finalizado || includeOpen))
     .sort((a, b) => a.rodada - b.rodada);
   for (const g of gs) {
@@ -463,11 +482,12 @@ function go(tab) { S.tab = tab; S.editing = null; S.editandoTorneio = false; ren
 
 function factsDo(t) {
   const f = [];
-  f.push({ pontos: "Pontos corridos", pontos_mata: "Pontos corridos + mata-mata", mata: "Mata-mata" }[t.formato]);
+  f.push({ pontos: "Pontos corridos", pontos_mata: "Pontos corridos + mata-mata", mata: "Mata-mata", grupos: `Fase de grupos (${t.grupos} grupos) + mata-mata` }[t.formato]);
   if (temLiga(t)) f.push(t.turnos === 2 ? "Ida e volta" : "Turno único");
+  if (t.formato === "grupos") f.push(t.por_grupo + (t.por_grupo === 1 ? " classificado" : " classificados") + " por grupo");
   if (temMata(t)) {
     const n = t.formato === "mata" ? S.parts.length : t.classificados;
-    f.push((t.formato === "pontos_mata" ? n + " classificados · " : "") + "começa na " + (FASES[FASE_POR_N[n]] || "—").toLowerCase());
+    f.push(({ pontos_mata: n + " classificados · ", grupos: n + " no mata-mata · " }[t.formato] || "") + "começa na " + (FASES[FASE_POR_N[n]] || "—").toLowerCase());
     f.push("mata-mata " + (t.mata_ida_volta ? "ida e volta" : "jogo único"));
     f.push("final " + (t.final_ida_volta ? "ida e volta" : "jogo único"));
   }
@@ -486,18 +506,25 @@ function viewTabela(t) {
       el("div", { class: "row-actions", style: "margin-top:10px" }, el("button", { class: "btn primary", type: "button", onclick: () => go("mata") }, "Ver chaveamento"))));
     return out;
   }
-  const rows = standings(S.incOpen);
-  const q = t.formato === "pontos_mata" ? t.classificados : 0;
-  const body = el("tbody");
-  rows.forEach((r, i) => {
-    const sg = r.GP - r.GC;
-    body.append(el("tr", { class: i < q ? "q" : "" },
-      el("td", { class: "pos" }, String(i + 1)),
-      el("td", { class: "name" }, nome(r.id), time(r.id) ? el("span", { class: "team" }, time(r.id)) : null),
-      el("td", { class: "pts" }, String(r.P)), el("td", {}, String(r.J)), el("td", {}, String(r.V)), el("td", {}, String(r.E)), el("td", {}, String(r.D)),
-      el("td", {}, String(r.GP)), el("td", {}, String(r.GC)), el("td", {}, (sg > 0 ? "+" : "") + sg),
-      el("td", {}, el("span", { class: "form-dots" }, r.last.slice(-5).map((x) => el("span", { class: "dot " + x, title: { V: "Vitória", E: "Empate", D: "Derrota" }[x] }, x))))));
-  });
+  const tabela = (rows, q) => {
+    const body = el("tbody");
+    rows.forEach((r, i) => {
+      const sg = r.GP - r.GC;
+      body.append(el("tr", { class: i < q ? "q" : "" },
+        el("td", { class: "pos" }, String(i + 1)),
+        el("td", { class: "name" }, nome(r.id), time(r.id) ? el("span", { class: "team" }, time(r.id)) : null),
+        el("td", { class: "pts" }, String(r.P)), el("td", {}, String(r.J)), el("td", {}, String(r.V)), el("td", {}, String(r.E)), el("td", {}, String(r.D)),
+        el("td", {}, String(r.GP)), el("td", {}, String(r.GC)), el("td", {}, (sg > 0 ? "+" : "") + sg),
+        el("td", {}, el("span", { class: "form-dots" }, r.last.slice(-5).map((x) => el("span", { class: "dot " + x, title: { V: "Vitória", E: "Empate", D: "Derrota" }[x] }, x))))));
+    });
+    return el("div", { class: "table-wrap", style: "margin-top:12px" }, el("table", {},
+      el("thead", {}, el("tr", {}, ["#", "Jogador", "P", "J", "V", "E", "D", "GP", "GC", "SG", "Últimos"].map((h, i) => el("th", { class: i === 1 ? "name" : "" }, h)))), body));
+  };
+  const grupos = t.formato === "grupos";
+  const q = t.formato === "pontos_mata" ? t.classificados : grupos ? t.por_grupo : 0;
+  const tabelas = grupos
+    ? Array.from({ length: t.grupos }, (_, i) => [el("h3", { class: "group", style: "margin-top:18px" }, "Grupo " + letra(i + 1)), tabela(standings(S.incOpen, i + 1), q)])
+    : [tabela(standings(S.incOpen), q)];
   const liga = S.jogos.filter((g) => g.fase === "liga");
   const feitos = liga.filter((g) => g.finalizado).length;
   const inc = el("input", { type: "checkbox", id: "incOpen", onchange: (e) => { S.incOpen = e.target.checked; render(); } });
@@ -505,10 +532,9 @@ function viewTabela(t) {
   out.push(el("section", { class: "panel" },
     el("h2", {}, t.nome, el("span", { class: "sub" }, `${feitos} de ${liga.length} jogos finalizados`)),
     factsDo(t),
-    el("div", { class: "table-wrap", style: "margin-top:12px" }, el("table", {},
-      el("thead", {}, el("tr", {}, ["#", "Jogador", "P", "J", "V", "E", "D", "GP", "GC", "SG", "Últimos"].map((h, i) => el("th", { class: i === 1 ? "name" : "" }, h)))), body)),
+    tabelas,
     el("div", { class: "legend" },
-      q ? el("span", {}, el("span", { class: "qmark" }), ` Top ${q} vão para o mata-mata`) : null,
+      q ? el("span", {}, el("span", { class: "qmark" }), grupos ? ` ${q === 1 ? "O 1º" : "Os " + q + " primeiros"} de cada grupo vão para o mata-mata` : ` Top ${q} vão para o mata-mata`) : null,
       el("span", {}, "Vitória 3 · Empate 1 · Desempate: vitórias, saldo, gols pró"),
       el("label", {}, inc, "Incluir jogos não finalizados (prévia)"))));
   return out;
@@ -547,7 +573,8 @@ function gameCard(g) {
   return el("article", { class: "game " + st[0] + (mine ? " mine" : "") },
     el("div", { class: "board" }, el("span", { class: "p home" }, nm(g.mandante)), score, el("span", { class: "p" }, nm(g.visitante))),
     pens,
-    el("div", { class: "meta" }, el("span", {}, el("span", { class: "status " + st[0] }, st[1]), " ", info), acts));
+    el("div", { class: "meta" }, el("span", {}, el("span", { class: "status " + st[0] }, st[1]), " ",
+      t.formato === "grupos" && g.fase === "liga" && grupoDe(g.mandante) ? el("span", { class: "fact" }, "Grupo " + letra(grupoDe(g.mandante))) : null, " ", info), acts));
 }
 
 function viewJogos(t) {
@@ -595,7 +622,7 @@ function viewMata(t) {
   }
   const ligaPend = temLiga(t) && !S.jogos.some((g) => g.fase !== "liga");
   return el("section", { class: "panel" },
-    el("h2", {}, "Mata-mata", el("span", { class: "sub" }, ligaPend ? `Os ${n} primeiros da tabela entram aqui quando a fase de pontos terminar.` : "Placar agregado; pênaltis entre parênteses.")),
+    el("h2", {}, "Mata-mata", el("span", { class: "sub" }, ligaPend ? (t.formato === "grupos" ? `Os ${n} classificados dos grupos entram aqui quando a fase de grupos terminar.` : `Os ${n} primeiros da tabela entram aqui quando a fase de pontos terminar.`) : "Placar agregado; pênaltis entre parênteses.")),
     el("div", { class: "bracket" }, cols));
 }
 
@@ -653,10 +680,11 @@ function painelTorneio(t) {
   const acoes = el("div", { class: "row-actions" });
   const liga = S.jogos.filter((g) => g.fase === "liga");
   const fase = faseAtualMata();
-  if (t.formato === "pontos_mata" && !fase) {
+  if ((t.formato === "pontos_mata" || t.formato === "grupos") && !fase) {
     const pronto = liga.length && liga.every((g) => g.finalizado);
-    acoes.append(armed(el("button", { class: "btn primary", type: "button", disabled: !pronto }, "Gerar mata-mata com os " + t.classificados + " primeiros"), "Confirmar?", () => gerarMataDaLiga(t, m)));
-    if (!pronto) acoes.append(el("span", { class: "hint" }, `Libera quando os ${liga.length} jogos da fase de pontos estiverem finalizados.`));
+    const rotulo = t.formato === "grupos" ? "Gerar mata-mata com os classificados dos grupos" : "Gerar mata-mata com os " + t.classificados + " primeiros";
+    acoes.append(armed(el("button", { class: "btn primary", type: "button", disabled: !pronto }, rotulo), "Confirmar?", () => gerarMataDaLiga(t, m)));
+    if (!pronto) acoes.append(el("span", { class: "hint" }, `Libera quando os ${liga.length} jogos da fase ${t.formato === "grupos" ? "de grupos" : "de pontos"} estiverem finalizados.`));
   }
   if (fase && PROXIMA[fase]) {
     const n = S.jogos.filter((g) => g.fase === fase).reduce((s, g) => Math.max(s, g.chave), 0);
@@ -680,7 +708,7 @@ function painelTorneio(t) {
   const lista = el("div", { class: "plist" });
   for (const p of S.parts.slice().sort((a, b) => nome(a.jogador_id).localeCompare(nome(b.jogador_id), "pt-BR"))) {
     const inp = el("input", { class: "tinput", list: "dlTimes", maxlength: "40", id: "tm-" + p.jogador_id, value: p.time || "", placeholder: "Time" });
-    lista.append(el("div", { class: "prow" }, el("span", { class: "seed" }, p.semente ? "#" + p.semente : ""), el("strong", {}, nome(p.jogador_id)), inp));
+    lista.append(el("div", { class: "prow" }, el("span", { class: "seed" }, p.semente ? "#" + p.semente : p.grupo ? letra(p.grupo) : ""), el("strong", {}, nome(p.jogador_id)), inp));
   }
   return el("section", { class: "panel" },
     el("h2", {}, "Torneio atual", el("span", { class: "sub" }, t.nome)),
@@ -702,13 +730,36 @@ function datalistTimes() { return el("datalist", { id: "dlTimes" }, Object.value
 
 function novoTorneio(ed) {
   const f = ed
-    ? { formato: ed.formato, turnos: String(ed.turnos), classificados: String(ed.classificados ?? 4), mata: ed.mata_ida_volta ? "1" : "0", final: ed.final_ida_volta ? "1" : "0" }
-    : { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0" };
+    ? { formato: ed.formato, turnos: String(ed.turnos), classificados: String(ed.formato === "pontos_mata" ? ed.classificados : 4), mata: ed.mata_ida_volta ? "1" : "0", final: ed.final_ida_volta ? "1" : "0",
+        grupos: String(ed.grupos ?? 2), porGrupo: String(ed.por_grupo ?? 2) }
+    : { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0", grupos: "2", porGrupo: "2" };
   const radio = (name, value, titulo, desc) => el("label", {}, el("input", { type: "radio", name, value, checked: f[name] === value }), el("b", {}, titulo), el("span", {}, desc));
   const jogadores = S.jogadores.slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  const lista = el("div", { class: "plist" }, jogadores.map((j) => el("div", { class: "prow two" },
-    el("label", {}, el("input", { type: "checkbox", class: "pchk", value: j.id, checked: ed ? !!part(j.id) : true }), j.nome),
-    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)", value: ed ? part(j.id)?.time || "" : "" }))));
+  const linha = (j, marcado, grupo) => el("div", { class: "prow pl two" },
+    el("label", {}, el("input", { type: "checkbox", class: "pchk", value: j.id, checked: marcado }), j.nome),
+    el("select", { class: "tinput pgrp", "data-id": j.id, "aria-label": "Grupo de " + j.nome },
+      el("option", { value: "" }, "Grupo"), [...LETRAS].map((l, i) => el("option", { value: String(i + 1), selected: grupo === i + 1 }, "Grupo " + l))),
+    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)", value: ed ? part(j.id)?.time || "" : "" }));
+  const lista = el("div", { class: "plist" }, jogadores.map((j) => linha(j, ed ? !!part(j.id) : true, ed ? part(j.id)?.grupo : null)));
+
+  // adicionar participante novo direto daqui (cria o jogador com login e senha 123456)
+  const novoNome = el("input", { class: "tinput", maxlength: "40", placeholder: "Nome do participante novo" });
+  const novoMsg = el("p", { class: "msg", hidden: true });
+  const addNovo = async () => {
+    const n = novoNome.value.trim(); if (!n) return novoNome.focus();
+    btnNovo.disabled = true;
+    const { data: id, error } = await sb.rpc("admin_criar_jogador", { p_nome: n });
+    btnNovo.disabled = false;
+    if (error) return msg(novoMsg, errText(error));
+    const j = { id, nome: n, perfil_id: null };
+    S.jogadores.push(j);
+    lista.append(linha(j, true, null));
+    novoNome.value = ""; novoNome.focus();
+    msg(novoMsg, `${n} entrou no torneio. Ele também ganhou login com a senha 123456.`, true);
+    form.dispatchEvent(new Event("change"));
+  };
+  const btnNovo = el("button", { class: "btn", type: "button", onclick: addNovo }, "Adicionar participante");
+  novoNome.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addNovo(); } });
 
   const pool = el("select", { class: "tinput", style: "width:auto" }, Object.keys(TEAMS).map((k) => el("option", { value: k }, k)));
   const sortear = el("button", { class: "btn", type: "button", onclick: () => {
@@ -720,14 +771,28 @@ function novoTorneio(ed) {
 
   const form = el("form", { class: "stack", id: "formNovo" },
     el("div", { class: "field" }, el("label", { for: "tNome" }, "Nome do torneio"), el("input", { id: "tNome", maxlength: "60", required: true, value: ed ? ed.nome : "Copa FIFA " + new Date().getFullYear() })),
-    el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Jogadores e times"), lista,
+    el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Participantes e times"), lista,
+      el("div", { class: "row-actions" }, el("div", { style: "flex:1;min-width:180px" }, novoNome), btnNovo), novoMsg,
       el("div", { class: "row-actions" }, pool, sortear, el("span", { class: "hint" }, "ou digite o time de cada um"))),
     el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Formato"),
       el("div", { class: "choice" },
         radio("formato", "pontos", "Pontos corridos", "Todos contra todos. Campeão é quem somar mais pontos."),
         radio("formato", "pontos_mata", "Pontos + mata-mata", "Todos contra todos e os melhores vão para o mata-mata."),
+        radio("formato", "grupos", "Grupos + mata-mata", "Fase de grupos estilo Copa e os classificados vão para o mata-mata."),
         radio("formato", "mata", "Só mata-mata", "Chaveamento sorteado direto. Precisa de 2, 4 ou 8 jogadores."))),
-    el("div", { class: "stack", style: "gap:8px", id: "bLiga" }, el("span", { class: "lbl" }, "Fase de pontos"),
+    el("div", { class: "stack", style: "gap:8px", id: "bGrupos" }, el("span", { class: "lbl" }, "Grupos"),
+      el("div", { class: "choice" },
+        radio("grupos", "2", "2 grupos", "Grupos A e B."),
+        radio("grupos", "4", "4 grupos", "Grupos A a D. Precisa de 8+ jogadores."),
+        radio("grupos", "8", "8 grupos", "Grupos A a H. Precisa de 16+ jogadores.")),
+      el("span", { class: "lbl" }, "Classificados por grupo"),
+      el("div", { class: "choice" },
+        radio("porGrupo", "1", "1 por grupo", "Só o líder de cada grupo avança."),
+        radio("porGrupo", "2", "2 por grupo", "1º e 2º avançam. 1º de um grupo pega o 2º do outro."),
+        radio("porGrupo", "4", "4 por grupo", "Os 4 primeiros avançam. 1º×4º e 2º×3º de grupos cruzados.")),
+      el("div", { class: "row-actions" }, el("button", { class: "btn", type: "button", id: "btnSortGrp" }, "Sortear grupos"),
+        el("span", { class: "hint" }, "ou escolha o grupo de cada participante na lista acima"))),
+    el("div", { class: "stack", style: "gap:8px", id: "bLiga" }, el("span", { class: "lbl", id: "lblLiga" }, "Fase de pontos"),
       el("div", { class: "choice" },
         radio("turnos", "1", "Turno único", "Cada dupla joga 1 vez."),
         radio("turnos", "2", "Ida e volta", "Cada dupla joga 2 vezes, uma em cada mando."))),
@@ -750,23 +815,65 @@ function novoTorneio(ed) {
       ed ? el("button", { class: "btn", type: "button", onclick: () => { S.editandoTorneio = false; render(); } }, "Cancelar") : null));
 
   const val = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
-  function atualizar() {
-    const n = form.querySelectorAll(".pchk:checked").length;
+  const marcados = () => [...form.querySelectorAll(".pchk:checked")].map((c) => c.value);
+  const grpSel = (id) => form.querySelector(`.pgrp[data-id="${id}"]`);
+  // escolhe a opção válida mais próxima quando a marcada fica desabilitada
+  const ajustar = (name) => { const rs = [...form.querySelectorAll(`input[name="${name}"]`)]; if (rs.some((r) => r.checked && !r.disabled)) return; const ok = rs.filter((r) => !r.disabled).pop() || rs[0]; ok.checked = true; };
+  function sortearGrupos() {
+    const G = +val("grupos");
+    shuffle(marcados()).forEach((id, i) => { grpSel(id).value = String((i % G) + 1); });
+    atualizar();
+  }
+  form.querySelector("#btnSortGrp").addEventListener("click", sortearGrupos);
+  let gruposAntes = val("grupos");
+  function atualizar(ev) {
+    const ids = marcados(), n = ids.length;
     const fmt = val("formato");
+    const grupos = fmt === "grupos";
     form.querySelector("#bLiga").hidden = fmt === "mata";
+    form.querySelector("#lblLiga").textContent = grupos ? "Jogos dentro de cada grupo" : "Fase de pontos";
     form.querySelector("#bClass").hidden = fmt !== "pontos_mata";
+    form.querySelector("#bGrupos").hidden = !grupos;
     form.querySelector("#bMata").hidden = fmt === "pontos";
+    form.querySelectorAll(".prow.pl").forEach((r) => { r.className = "prow pl " + (grupos ? "three" : "two"); });
+    form.querySelectorAll(".pgrp").forEach((s) => { s.hidden = !grupos; s.disabled = !s.closest(".prow").querySelector(".pchk").checked; });
     form.querySelectorAll('input[name="classificados"]').forEach((r) => { r.disabled = +r.value > n; if (r.disabled && r.checked) { const ok = [...form.querySelectorAll('input[name="classificados"]')].filter((x) => +x.value <= n).pop(); if (ok) ok.checked = true; } });
+    let G = 0, tam = [];
+    if (grupos) {
+      form.querySelectorAll('input[name="grupos"]').forEach((r) => { r.disabled = n < 2 * +r.value; });
+      ajustar("grupos");
+      G = +val("grupos");
+      form.querySelectorAll(".pgrp option").forEach((o) => { o.hidden = o.disabled = +o.value > G; });
+      // mudou o nº de grupos ou alguém marcado ainda sem grupo: distribui
+      const semGrupo = ids.filter((id) => { const v = +grpSel(id).value; return !v || v > G; });
+      if (val("grupos") !== gruposAntes || (semGrupo.length === n && n)) { gruposAntes = val("grupos"); return sortearGrupos(); }
+      for (const id of semGrupo) {
+        const cont = Array.from({ length: G }, (_, g) => ids.filter((x) => +grpSel(x).value === g + 1).length);
+        grpSel(id).value = String(cont.indexOf(Math.min(...cont)) + 1);
+      }
+      tam = Array.from({ length: G }, (_, g) => ids.filter((x) => +grpSel(x).value === g + 1).length);
+      const menor = Math.min(...tam);
+      form.querySelectorAll('input[name="porGrupo"]').forEach((r) => { r.disabled = +r.value >= menor || G * +r.value > 16; });
+      ajustar("porGrupo");
+    }
     const turnos = +val("turnos"), mv = val("mata") === "1", fv = val("final") === "1";
     let ligaJogos = 0, mataJogos = 0, linhas = [], erro = "";
     if (n < 2) erro = "Escolha pelo menos 2 jogadores.";
-    if (fmt !== "mata") {
+    if (grupos) {
+      const q = +val("porGrupo");
+      const ruim = tam.findIndex((s) => s < q + 1);
+      if (n < 4) erro = "Grupos precisam de pelo menos 4 jogadores.";
+      else if (ruim >= 0) erro = `O Grupo ${letra(ruim + 1)} tem ${tam[ruim]} jogador(es). Cada grupo precisa de pelo menos ${q + 1} para classificar ${q}.`;
+      ligaJogos = tam.reduce((s, x) => s + (x * (x - 1) / 2) * turnos, 0);
+      const rods = Math.max(...tam.map((x) => (x % 2 ? x : x - 1))) * turnos;
+      linhas.push(`Grupos: ${tam.map((x, g) => letra(g + 1) + " " + x).join(", ")} · ${ligaJogos} jogos em ${rods} rodadas`);
+    } else if (fmt !== "mata") {
       ligaJogos = (n * (n - 1) / 2) * turnos;
       const rods = (n % 2 ? n : n - 1) * turnos;
       linhas.push(`Fase de pontos: ${ligaJogos} jogos em ${rods} rodadas` + (n % 2 ? " (1 folga por rodada)" : ""));
     }
-    if (fmt !== "pontos") {
-      const k = fmt === "mata" ? n : +val("classificados");
+    if (fmt !== "pontos" && !erro) {
+      const k = fmt === "mata" ? n : grupos ? G * +val("porGrupo") : +val("classificados");
       if (fmt === "mata" && ![2, 4, 8].includes(n)) erro = `Só mata-mata precisa de 2, 4 ou 8 jogadores (marcados: ${n}).`;
       else {
         let q = k / 2, fase = FASE_POR_N[k];
@@ -785,13 +892,16 @@ function novoTorneio(ed) {
     const m = form.querySelector("#tMsg");
     const ids = [...form.querySelectorAll(".pchk:checked")].map((c) => c.value);
     const fmt = val("formato");
+    const G = fmt === "grupos" ? +val("grupos") : null, q = fmt === "grupos" ? +val("porGrupo") : null;
     const novo = {
       nome: form.querySelector("#tNome").value.trim(), formato: fmt,
       turnos: fmt === "mata" ? 1 : +val("turnos"),
-      classificados: fmt === "pontos_mata" ? +val("classificados") : fmt === "mata" ? ids.length : null,
+      classificados: fmt === "pontos_mata" ? +val("classificados") : fmt === "mata" ? ids.length : fmt === "grupos" ? G * q : null,
       mata_ida_volta: fmt !== "pontos" && val("mata") === "1",
       final_ida_volta: fmt !== "pontos" && val("final") === "1",
+      grupos: G, por_grupo: q, chaveamento: G ? chaveamentoGrupos(G, q) : null,
     };
+    const grupoDoForm = (id) => (G ? +grpSel(id).value : null);
     const btn = form.querySelector("#tCriar"); btn.disabled = true;
     try {
       let t;
@@ -809,10 +919,13 @@ function novoTorneio(ed) {
         t = data;
       }
       const sementes = shuffle(ids);
-      const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null }));
+      const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null, grupo: grupoDoForm(id) }));
       const r1 = await sb.from("participantes").insert(parts); if (r1.error) throw r1.error;
       let jogos = [];
-      if (fmt !== "mata") for (const r of roundRobin(ids, novo.turnos)) for (const [h, v] of r.pares) jogos.push({ torneio_id: t.id, fase: "liga", rodada: r.rodada, mandante: h, visitante: v });
+      if (fmt === "grupos") {
+        for (let g = 1; g <= G; g++) for (const r of roundRobin(ids.filter((id) => grupoDoForm(id) === g), novo.turnos))
+          for (const [h, v] of r.pares) jogos.push({ torneio_id: t.id, fase: "liga", rodada: r.rodada, mandante: h, visitante: v });
+      } else if (fmt !== "mata") for (const r of roundRobin(ids, novo.turnos)) for (const [h, v] of r.pares) jogos.push({ torneio_id: t.id, fase: "liga", rodada: r.rodada, mandante: h, visitante: v });
       else {
         const porSemente = (s) => sementes[s - 1];
         jogos = jogosDaFase(t, FASE_POR_N[ids.length], CHAVES[ids.length].map(([a, b]) => [porSemente(a), porSemente(b)]));
@@ -831,13 +944,23 @@ function novoTorneio(ed) {
 }
 
 async function gerarMataDaLiga(t, m) {
-  const top = standings(false).slice(0, t.classificados).map((r) => r.id);
+  let top, pares;
+  if (t.formato === "grupos") {
+    // vagas por grupo/posição e sementes: 1ºs colocados primeiro, depois 2ºs..., desempate pela campanha
+    const vagas = [], classif = [];
+    for (let g = 1; g <= t.grupos; g++) standings(false, g).slice(0, t.por_grupo).forEach((r, i) => { vagas.push(r.id); classif.push({ ...r, pos: i }); });
+    top = classif.sort((x, y) => x.pos - y.pos || y.P - x.P || y.V - x.V || (y.GP - y.GC) - (x.GP - x.GC) || y.GP - x.GP || nome(x.id).localeCompare(nome(y.id), "pt-BR")).map((r) => r.id);
+    pares = t.chaveamento.map(([a, b]) => { const x = vagas[a - 1], y = vagas[b - 1]; return top.indexOf(x) <= top.indexOf(y) ? [x, y] : [y, x]; });
+  } else {
+    top = standings(false).slice(0, t.classificados).map((r) => r.id);
+    pares = CHAVES[t.classificados].map(([a, b]) => [top[a - 1], top[b - 1]]);
+  }
   for (let i = 0; i < top.length; i++) {
     const { error } = await sb.from("participantes").update({ semente: i + 1 }).eq("torneio_id", t.id).eq("jogador_id", top[i]);
     if (error) return msg(m, errText(error));
   }
   const fase = FASE_POR_N[t.classificados];
-  const jogos = jogosDaFase(t, fase, CHAVES[t.classificados].map(([a, b]) => [top[a - 1], top[b - 1]]));
+  const jogos = jogosDaFase(t, fase, pares);
   const { error } = await sb.from("jogos").insert(jogos);
   if (error) return msg(m, errText(error));
   toast(FASES[fase] + " gerada"); S.tab = "mata"; await loadTorneio();
@@ -878,7 +1001,11 @@ async function salvarPlacar(g, finalizar) {
   const { data, error } = await sb.from("jogos").update(upd).eq("id", g.id).select();
   if (error) return toast(errText(error));
   if (!data?.length) { await loadTorneio(); return toast("Jogo finalizado: só o admin pode alterar."); }
+  const faseAntes = faseAtualMata();
   S.editing = null; toast(finalizar ? "Jogo finalizado" : "Placar salvo"); await loadTorneio();
+  // o banco gera a próxima fase sozinho ao finalizar o último jogo
+  const faseDepois = faseAtualMata();
+  if (finalizar && faseDepois && faseDepois !== faseAntes) { toast(FASES[faseDepois] + " gerada"); S.tab = "mata"; render(); }
 }
 async function reabrir(g) {
   const { data, error } = await sb.from("jogos").update({ finalizado: false }).eq("id", g.id).select();
