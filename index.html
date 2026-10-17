@@ -324,11 +324,15 @@ async function loadBase() {
     sb.from("perfis").select("id,nome,usuario,is_admin").order("nome"),
     sb.from("jogadores").select("*").order("nome"),
     sb.from("torneios").select("*").order("criado_em", { ascending: false }),
-    sb.from("participantes").select("jogador_id"),
+    sb.from("participantes").select("jogador_id,torneio_id,time"),
   ]);
   if (pf.error || jg.error || tn.error || pa.error) return toast("Não foi possível carregar. Recarregue a página.");
   S.perfis = pf.data; S.jogadores = jg.data; S.torneios = tn.data;
   S.emTorneio = new Set(pa.data.map((p) => p.jogador_id));
+  // memória dos times: o time que cada um usou no torneio mais recente em que jogou
+  const ordemT = new Map(S.torneios.map((t, i) => [t.id, i])); // S.torneios vem do mais novo pro mais antigo
+  S.ultimoTime = new Map();
+  for (const p of pa.data.filter((x) => x.time).sort((a, b) => (ordemT.get(b.torneio_id) ?? 1e9) - (ordemT.get(a.torneio_id) ?? 1e9))) S.ultimoTime.set(p.jogador_id, p.time);
   if (!S.torneios.some((t) => t.id === S.tid)) {
     const salvo = store.get("torneio");
     S.tid = (S.torneios.find((t) => t.id === salvo) || S.torneios.find((t) => t.status === "andamento") || S.torneios[0])?.id || null;
@@ -731,8 +735,15 @@ function painelTorneio(t) {
 
 function datalistTimes() { return el("datalist", { id: "dlTimes" }, Object.values(TEAMS).flat().map((x) => el("option", { value: x }))); }
 
+// rascunho do formulário de torneio novo: guardado neste aparelho até o torneio ser criado
+const RASCUNHO = "rascunhoTorneio";
+function lerRascunho() { try { return JSON.parse(store.get(RASCUNHO) || "null"); } catch { return null; } }
+function apagarRascunho() { try { localStorage.removeItem(RASCUNHO); } catch {} }
+
 function novoTorneio(ed) {
-  const f = ed
+  const rasc = ed ? null : lerRascunho();
+  const rj = (id) => rasc?.jog?.[id];
+  const f = rasc ? { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0", grupos: "2", porGrupo: "2", ...rasc.radios } : ed
     ? { formato: ed.formato, turnos: String(ed.turnos), classificados: String(ed.formato === "pontos_mata" ? ed.classificados : 4), mata: ed.mata_ida_volta ? "1" : "0", final: ed.final_ida_volta ? "1" : "0",
         grupos: String(ed.grupos ?? 2), porGrupo: String(ed.por_grupo ?? 2) }
     : { formato: "pontos_mata", turnos: "1", classificados: "4", mata: "0", final: "0", grupos: "2", porGrupo: "2" };
@@ -743,9 +754,12 @@ function novoTorneio(ed) {
     el("span", { class: "grpbox" },
       el("select", { class: "tinput pgrp", "data-id": j.id, "aria-label": "Grupo de " + j.nome },
         el("option", { value: "" }, "Grupo"), [...LETRAS].map((l, i) => el("option", { value: String(i + 1), selected: grupo === i + 1 }, "Grupo " + l))),
-      el("label", { title: "Cabeça de chave: fica num grupo sem outro cabeça" }, el("input", { type: "checkbox", class: "pcab", "data-id": j.id, checked: ed ? !!part(j.id)?.cabeca : false }), "Cabeça de chave")),
-    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)", value: ed ? part(j.id)?.time || "" : "" }));
-  const lista = el("div", { class: "plist" }, jogadores.map((j) => linha(j, ed ? !!part(j.id) : true, ed ? part(j.id)?.grupo : null)));
+      el("label", { title: "Cabeça de chave: fica num grupo sem outro cabeça" }, el("input", { type: "checkbox", class: "pcab", "data-id": j.id, checked: ed ? !!part(j.id)?.cabeca : !!rj(j.id)?.cab }), "Cabeça de chave")),
+    el("input", { class: "tinput ptime", list: "dlTimes", maxlength: "40", "data-id": j.id, placeholder: "Time (opcional)",
+      value: ed ? part(j.id)?.time || "" : rj(j.id) ? rj(j.id).time || "" : S.ultimoTime?.get(j.id) || "" }));
+  const lista = el("div", { class: "plist" }, jogadores.map((j) => linha(j,
+    ed ? !!part(j.id) : rj(j.id) ? !!rj(j.id).on : !rasc,
+    ed ? part(j.id)?.grupo : rj(j.id)?.grupo || null)));
 
   // adicionar participante novo direto daqui (cria o jogador com login e senha 123456)
   const novoNome = el("input", { class: "tinput", maxlength: "40", placeholder: "Nome do participante novo" });
@@ -775,7 +789,9 @@ function novoTorneio(ed) {
   } }, "Sortear times");
 
   const form = el("form", { class: "stack", id: "formNovo" },
-    el("div", { class: "field" }, el("label", { for: "tNome" }, "Nome do torneio"), el("input", { id: "tNome", maxlength: "60", required: true, value: ed ? ed.nome : "Copa FIFA " + new Date().getFullYear() })),
+    el("div", { class: "field" }, el("label", { for: "tNome" }, "Nome do torneio"), el("input", { id: "tNome", maxlength: "60", required: true, value: ed ? ed.nome : rasc?.nome ?? "Copa FIFA " + new Date().getFullYear() })),
+    !ed ? el("p", { class: "hint" }, rasc ? "Continuando o que você preencheu antes. " : "Os times já vêm preenchidos com o que cada um usou no último torneio. ",
+      rasc ? el("button", { class: "btn small", type: "button", onclick: () => { apagarRascunho(); render(); } }, "Começar do zero") : null) : null,
     el("div", { class: "stack", style: "gap:8px" }, el("span", { class: "lbl" }, "Participantes e times"), lista,
       el("div", { class: "row-actions" }, el("div", { style: "flex:1;min-width:180px" }, novoNome), btnNovo), novoMsg,
       el("div", { class: "row-actions" }, pool, sortear, el("span", { class: "hint" }, "ou digite o time de cada um"))),
@@ -911,6 +927,19 @@ function novoTorneio(ed) {
     form.querySelector("#tCriar").disabled = !!erro;
   }
   form.addEventListener("change", atualizar);
+  function salvarRascunho() {
+    if (ed) return;
+    const radios = {};
+    for (const k of ["formato", "turnos", "classificados", "mata", "final", "grupos", "porGrupo"]) if (val(k)) radios[k] = val(k);
+    const jog = {};
+    form.querySelectorAll(".prow.pl").forEach((r) => {
+      const id = r.querySelector(".pchk").value;
+      jog[id] = { on: r.querySelector(".pchk").checked, time: r.querySelector(".ptime").value, grupo: +r.querySelector(".pgrp").value || null, cab: r.querySelector(".pcab").checked };
+    });
+    store.set(RASCUNHO, JSON.stringify({ nome: form.querySelector("#tNome").value, radios, jog }));
+  }
+  form.addEventListener("change", salvarRascunho);
+  form.addEventListener("input", salvarRascunho);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const m = form.querySelector("#tMsg");
@@ -927,8 +956,8 @@ function novoTorneio(ed) {
     };
     const grupoDoForm = (id) => (G ? +grpSel(id).value : null);
     const btn = form.querySelector("#tCriar"); btn.disabled = true;
+    let t, criado = false;
     try {
-      let t;
       if (ed) {
         const { data: placar, error: e0 } = await sb.from("jogos").select("id").eq("torneio_id", ed.id).not("gols_mandante", "is", null).limit(1);
         if (e0) throw e0;
@@ -940,7 +969,7 @@ function novoTorneio(ed) {
       } else {
         const { data, error } = await sb.from("torneios").insert(novo).select().single();
         if (error) throw error;
-        t = data;
+        t = data; criado = true;
       }
       const sementes = shuffle(ids);
       const parts = ids.map((id) => ({ torneio_id: t.id, jogador_id: id, time: form.querySelector(`.ptime[data-id="${id}"]`).value.trim() || null, semente: fmt === "mata" ? sementes.indexOf(id) + 1 : null, grupo: grupoDoForm(id), cabeca: !!G && cabeca(id) }));
@@ -955,12 +984,17 @@ function novoTorneio(ed) {
         jogos = jogosDaFase(t, FASE_POR_N[ids.length], CHAVES[ids.length].map(([a, b]) => [porSemente(a), porSemente(b)]));
       }
       const r2 = await sb.from("jogos").insert(jogos); if (r2.error) throw r2.error;
+      if (!ed) apagarRascunho();
       S.tid = t.id; store.set("torneio", t.id);
       toast((ed ? "Torneio atualizado: " : "Torneio criado com ") + jogos.length + " jogos");
       S.editandoTorneio = false;
       S.tab = fmt === "mata" ? "mata" : "jogos";
       await loadBase();
-    } catch (err) { msg(m, errText(err)); btn.disabled = false; }
+    } catch (err) {
+      // não deixa torneio pela metade: desfaz o que foi criado e mantém o formulário preenchido
+      if (criado && t) { await sb.from("jogos").delete().eq("torneio_id", t.id); await sb.from("participantes").delete().eq("torneio_id", t.id); await sb.from("torneios").delete().eq("id", t.id); }
+      msg(m, errText(err)); btn.disabled = false;
+    }
   });
   queueMicrotask(atualizar);
   return el("section", { class: "panel" }, el("h2", {}, ed ? "Editar torneio" : "Novo torneio",
