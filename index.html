@@ -539,7 +539,7 @@ function viewTabela(t) {
   out.push(el("section", { class: "panel" },
     el("h2", {}, t.nome, el("span", { class: "sub" }, `${feitos} de ${liga.length} jogos finalizados`)),
     factsDo(t),
-    tabelas,
+    tabelas.flat(),
     el("div", { class: "legend" },
       q ? el("span", {}, el("span", { class: "qmark" }), grupos ? ` ${q === 1 ? "O 1º" : "Os " + q + " primeiros"} de cada grupo vão para o mata-mata` : ` Top ${q} vão para o mata-mata`) : null,
       el("span", {}, "Vitória 3 · Empate 1 · Desempate: vitórias, saldo, gols pró"),
